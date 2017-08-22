@@ -168,11 +168,12 @@ namespace NTumbleBit.Tests
 			Key serverEscrow = new Key();
 			Key clientEscrow = new Key();
 
-			var parameters = new PromiseParameters(key.PubKey)
-			{
-				FakeTransactionCount = 5,
-				RealTransactionCount = 5
-			};
+            var parameters = new PromiseParameters(key.PubKey)
+            {
+                FakeTransactionCountPerLevel = 5,
+                RealTransactionCountPerLevel = 5,
+                PaymentsCount = 5 //Not sure if this is the way to go.
+            };
 
 			var client = new PromiseClientSession(parameters);
 			var server = new PromiseServerSession(parameters);
@@ -185,7 +186,7 @@ namespace NTumbleBit.Tests
 			RoundTrip(ref request);
 
 			server.ConfigureEscrowedCoin(uint160.Zero, coin, serverEscrow, new Key().ScriptPubKey);
-			PuzzlePromise.ServerCommitment[] commitments = server.SignHashes(request);
+			PuzzlePromise.ServerCommitment[][] commitments = server.SignHashes(request);
 			RoundTrip(ref server, parameters);
 			RoundTrip(ref commitments);
 
@@ -193,21 +194,26 @@ namespace NTumbleBit.Tests
 			RoundTrip(ref client, parameters);
 			RoundTrip(ref revelation);
 
-			ServerCommitmentsProof proof = server.CheckRevelation(revelation);
+			ServerCommitmentsProof proof = server.CheckRevelation(revelation, clientEscrow.PubKey.Hash, FeeRate);
 			RoundTrip(ref server, parameters);
 			RoundTrip(ref proof);
 
-			var puzzleToSolve = client.CheckCommitmentProof(proof);
+			var puzzlesToSolve = client.CheckCommitmentProof(proof);
 			RoundTrip(ref client, parameters);
-			Assert.NotNull(puzzleToSolve);
+            foreach (var puzzle in puzzlesToSolve)
+                Assert.NotNull(puzzle);
 
-			var solution = key.SolvePuzzle(puzzleToSolve);
-			var transactions = client.GetSignedTransactions(solution).ToArray();
-			RoundTrip(ref client, parameters);
-			Assert.True(transactions.Length == parameters.RealTransactionCount);
+            for (int i = 0; i < puzzlesToSolve.Length; i++)
+            {
+                var solution = key.SolvePuzzle(puzzlesToSolve[i]);
+                // I'm not sure if GetSignedTransactions should handle all payments or only one payment at a time.
+                var transactions = client.GetSignedTransactions(solution, i).ToArray();
+                RoundTrip(ref client, parameters);
+                Assert.True(transactions.Length == parameters.RealTransactionCountPerLevel);
+            }
 
 
-			var escrow = server.GetInternalState().EscrowedCoin;
+            var escrow = server.GetInternalState().EscrowedCoin;
 			// In case things do not go well and timeout is hit...
 			var redeemTransaction = server.CreateRedeemTransaction(FeeRate);
 			var resigned = redeemTransaction.ReSign(escrow);
@@ -350,7 +356,19 @@ namespace NTumbleBit.Tests
 			commitments = a.Elements;
 		}
 
-		private void RoundTrip<T>(ref T commitments) where T : IBitcoinSerializable, new()
+        private void RoundTrip<T>(ref T[][] commitments) where T : IBitcoinSerializable, new()
+        {
+            // Need to approve this function!
+            RoundtripJson(ref commitments);
+            for (int i = 0; i < commitments.Length; i++)
+            {
+                var a = new ArrayWrapper<T>(commitments[i]);
+                Roundtrip(ref a);
+                commitments[i] = a.Elements;
+            }
+        }
+
+        private void RoundTrip<T>(ref T commitments) where T : IBitcoinSerializable, new()
 		{
 			RoundtripJson(ref commitments);
 			Roundtrip(ref commitments);
