@@ -152,7 +152,6 @@ namespace NTumbleBit.PuzzlePromise
 
         public PromiseClientSession(PromiseParameters parameters, State state) : this(parameters)
         {
-            // This is ready.
             if (state == null)
                 return;
             InternalState = Serializer.Clone(state);
@@ -190,7 +189,6 @@ namespace NTumbleBit.PuzzlePromise
 
         public State GetInternalState()
         {
-            // This is ready
             State state = Serializer.Clone(InternalState);
             state.Salts = null;
             state.FeeVariations = null;
@@ -199,7 +197,6 @@ namespace NTumbleBit.PuzzlePromise
             {
                 var commitments = new ServerCommitment[_Hashes.Length][];
                 var salts = new uint256[_Hashes.Length][];
-                // This can be merged to the above matrix (If we can "(uint256) Money").
                 var feeVariations = new Money[_Hashes.Length][];
                 for (int i = 0; i < _Hashes.Length; i++)
                 {
@@ -209,7 +206,6 @@ namespace NTumbleBit.PuzzlePromise
                     int fakeJ = 0, realJ = 0;
                     for (int j = 0; j < _Hashes[i].Length; j++)
                     {
-                        // Verify the use of fakeJ here
                         if (_Hashes[i][j] is FakeHash fake)
                             salts[i][fakeJ++] = fake.Salt;
 
@@ -242,8 +238,7 @@ namespace NTumbleBit.PuzzlePromise
         public SignaturesRequest CreateSignatureRequest(Script cashoutDestination, FeeRate feeRate)
         {
             // Steps 2-4
-            // Almost done, just need to figure out the Transaction CashOut things. 
-            // If every row is like the Q=1, then it should be easy, each transaction is 1 BitCoin.
+            // Almost done, just need to figure out the Transaction CashOut things.
 
             if (cashoutDestination == null)
                 throw new ArgumentNullException(nameof(cashoutDestination));
@@ -305,7 +300,6 @@ namespace NTumbleBit.PuzzlePromise
             var request = new SignaturesRequest
             {
                 // This looks cool, but double check the use of Select in debugging.
-                // Debugging should be good enough to test.
                 Hashes = _Hashes.Select(h => (h.Select(k => k.GetHash()).ToArray())).ToArray(),
                 FakeIndexesHash = PromiseUtils.HashIndexes(ref indexSalt, fakeIndices),
             };
@@ -319,7 +313,6 @@ namespace NTumbleBit.PuzzlePromise
         public ClientRevelation Reveal(ServerCommitment[][] commitments)
         {
             // Step 6 
-            // This is ready
             if (commitments == null)
                 throw new ArgumentNullException(nameof(commitments));
 
@@ -342,7 +335,7 @@ namespace NTumbleBit.PuzzlePromise
                 if (_Hashes.First()[i] is FakeHash)
                     fakeIndices.Add(i);
             }
-            // These nested for loops are repeated in "GetInternalState()"
+
             for (int i = 0; i < _Parameters.PaymentsCount; i++)
             {
                 salts[i] = new uint256[_Parameters.FakeTransactionCountPerLevel];
@@ -366,7 +359,6 @@ namespace NTumbleBit.PuzzlePromise
 
         public PuzzleValue[] CheckCommitmentProof(ServerCommitmentsProof proof)
         {
-            // This is ready
             // steps 8, 10, 12
             if (proof == null)
                 throw new ArgumentNullException(nameof(proof));
@@ -387,7 +379,7 @@ namespace NTumbleBit.PuzzlePromise
                 var fakeHashes = _Hashes[i].OfType<FakeHash>().ToArray();
                 for (int j = 0; j < fakeHashes.Length; j++)
                 {
-                    // Just double check that the solutions are lined up in same order as the hashes.
+                    // TODO: prove that the solutions are lined up in same order as the hashes.
                     var fakeHash = fakeHashes[j];
                     var solution = proof.FakeSolutions[i][j];
 
@@ -397,7 +389,6 @@ namespace NTumbleBit.PuzzlePromise
                     if (!new Puzzle(Parameters.ServerKey, fakeHash.Commitment.Puzzle).Verify(solution))
                         throw new PuzzleException("Invalid puzzle solution");
 
-                    // Need to double check the logic here
                     previousSolutions[j] = Utils.Combine(solution.ToBytes(), previousSolutions[j]);
                     var paddedSolution = new PuzzleSolution(Utils.Combine(BitConverter.GetBytes(i), BitConverter.GetBytes(fakeHash.Index), previousSolutions[j]));
                     if (!IsValidSignature(paddedSolution, fakeHash, out ECDSASignature sig))
@@ -418,13 +409,12 @@ namespace NTumbleBit.PuzzlePromise
                         throw new PuzzleException("Invalid quotient");
                 }
             }
-            // Double check the use of "Select" here.
             _Hashes = _Hashes.Select(a => a.OfType<RealHash>().ToArray()).ToArray(); // we do not need the fake one anymore
             InternalState.FakeColumns = null;
             InternalState.Quotients = proof.Quotients;
 
             // Step 12
-            // Maybe move this step outside such that we can blind an send puzzles one by one.
+            // Maybe move this step outside such that we can blind and send puzzles one by one.
             BlindFactor[] blindFactors = new BlindFactor[_Hashes.Length];
             PuzzleValue[] blindedPuzzles = new PuzzleValue[_Hashes.Length];
 
@@ -442,15 +432,12 @@ namespace NTumbleBit.PuzzlePromise
         private bool IsValidSignature(PuzzleSolution solution, HashBase hash, out ECDSASignature signature)
         {
             signature = null;
-            // Maybe I could use something like this to get Bob's address for the cashOut.
             var escrow = EscrowScriptPubKeyParameters.GetFromCoin(InternalState.EscrowedCoin);
             try
             {
                 var key = solution._Value.ToByteArrayUnsigned();
                 var sig = XORKey.XOR(key, hash.Commitment.Promise);
                 signature = new ECDSASignature(sig);
-                //var key = new XORKey(solution);
-                //signature = new ECDSASignature(key.XOR(hash.Commitment.Promise));
                 var ok = escrow.Initiator.Verify(hash.GetHash(), signature);
                 if (!ok)
                     signature = null;

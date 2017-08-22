@@ -1,20 +1,15 @@
 ﻿using NBitcoin;
 using NBitcoin.Crypto;
-using NBitcoin.DataEncoders;
+using NTumbleBit.ClassicTumbler.Client;
 using NTumbleBit.PuzzlePromise;
 using NTumbleBit.PuzzleSolver;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TumbleBitSetup;
-using NTumbleBit.Services;
-using NTumbleBit.ClassicTumbler.Client;
 
 namespace NTumbleBit.ClassicTumbler
 {
-	public class ClassicTumblerParameters : IBitcoinSerializable
+    public class ClassicTumblerParameters : IBitcoinSerializable
 	{
 		const int LAST_VERSION = 1;
 		public ClassicTumblerParameters()
@@ -138,8 +133,9 @@ namespace NTumbleBit.ClassicTumbler
 			}
 		}
 
+        // TODO: Might need to add PaymentsCount as a field here.
 
-		int _FakePuzzleCount;
+        int _FakePuzzleCount;
 		public int FakePuzzleCount
 		{
 			get
@@ -226,7 +222,8 @@ namespace NTumbleBit.ClassicTumbler
 			stream.ReadWriteC(ref _ExpectedAddress);
 		}
 
-		public bool Check(PromiseParameters promiseParams)
+        // Might need to add more checks here
+        public bool Check(PromiseParameters promiseParams)
 		{
 			return promiseParams.FakeTransactionCountPerLevel == FakeTransactionCount &&
 				promiseParams.RealTransactionCountPerLevel == RealTransactionCount;
@@ -252,7 +249,8 @@ namespace NTumbleBit.ClassicTumbler
 		{
 			return new PromiseParameters
 			{
-				FakeFormat = FakeFormat,
+                // Might need to add the PaymentsCount here
+                FakeFormat = FakeFormat,
 				FakeTransactionCountPerLevel = FakeTransactionCount,
 				RealTransactionCountPerLevel = RealTransactionCount,
 				ServerKey = ServerKey.PublicKey
