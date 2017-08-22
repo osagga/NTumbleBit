@@ -1,9 +1,6 @@
 ﻿using NBitcoin;
-using NBitcoin.BouncyCastle.Math;
 using NBitcoin.RPC;
-using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -11,7 +8,7 @@ using TumbleBitSetup;
 
 namespace NTumbleBit
 {
-	public static class Extensions
+    public static class Extensions
 	{
 		public static void ReadWriteC(this BitcoinStream bs, ref uint256[] values)
 		{
@@ -22,7 +19,8 @@ namespace NTumbleBit
 				values = mutable.Select(m => m.Value).ToArray();
 			}
 		}
-		public static void ReadWriteC(this BitcoinStream bs, ref PubKey pubKey)
+
+        public static void ReadWriteC(this BitcoinStream bs, ref PubKey pubKey)
 		{
 			if(bs.Serializing)
 			{
@@ -194,7 +192,166 @@ namespace NTumbleBit
 			}
 		}
 
-		public static RPCResponse SendCommandNoThrows(this RPCClient client, string commandName, params object[] parameters)
+        public static void ReadWriteC<T>(this BitcoinStream bs, ref T[][] arr) where T : IBitcoinSerializable
+        {
+            if (bs.Serializing)
+            {
+                if (arr == null)
+                {
+                    uint o = 0;
+                    bs.ReadWriteAsVarInt(ref o);
+                    return;
+                }
+                var len = (uint)arr.Length;
+                bs.ReadWriteAsVarInt(ref len);
+                for (int i = 0; i < len; i++)
+                {
+                    var subLen = (uint)arr[i].Length;
+                    bs.ReadWriteAsVarInt(ref subLen);
+                    for (int j = 0; j < subLen; j++)
+                    {
+                        var n = arr[i][j];
+                        bs.ReadWrite(ref n);
+                    }
+                }
+            }
+            else
+            {
+                uint len = 0;
+                bs.ReadWriteAsVarInt(ref len);
+                if (len == 0)
+                {
+                    arr = null;
+                    return;
+                }
+                if (len > bs.MaxArraySize)
+                    throw new ArgumentOutOfRangeException("Array is too big");
+                arr = new T[len][];
+                for (int i = 0; i < len; i++)
+                {
+                    uint subLen = 0;
+                    bs.ReadWriteAsVarInt(ref subLen);
+                    if (subLen == 0)
+                    {
+                        arr[i] = null;
+                        return;
+                    }
+                    arr[i] = new T[subLen];
+                    for (int j = 0; j < subLen; j++)
+                    {
+                        bs.ReadWrite(ref arr[i][j]);
+                    }
+                }
+            }
+        }
+
+        public static void ReadWriteC(this BitcoinStream bs, ref uint256[][] arr)
+        {
+            if (bs.Serializing)
+            {
+                if (arr == null)
+                {
+                    uint o = 0;
+                    bs.ReadWriteAsVarInt(ref o);
+                    return;
+                }
+                var len = (uint)arr.Length;
+                bs.ReadWriteAsVarInt(ref len);
+                for (int i = 0; i < len; i++)
+                {
+                    var subLen = (uint)arr[i].Length;
+                    bs.ReadWriteAsVarInt(ref subLen);
+                    for (int j = 0; j < subLen; j++)
+                    {
+                        var n = arr[i][j];
+                        bs.ReadWrite(ref n);
+                    }
+                }
+            }
+            else
+            {
+                uint len = 0;
+                bs.ReadWriteAsVarInt(ref len);
+                if (len == 0)
+                {
+                    arr = null;
+                    return;
+                }
+                if (len > bs.MaxArraySize)
+                    throw new ArgumentOutOfRangeException("Array is too big");
+                arr = new uint256[len][];
+                for (int i = 0; i < len; i++)
+                {
+                    uint subLen = 0;
+                    bs.ReadWriteAsVarInt(ref subLen);
+                    if (subLen == 0)
+                    {
+                        arr[i] = null;
+                        return;
+                    }
+                    arr[i] = new uint256[subLen];
+                    for (int j = 0; j < subLen; j++)
+                    {
+                        bs.ReadWrite(ref arr[i][j]);
+                    }
+                }
+            }
+        }
+
+        public static void ReadWriteC(this BitcoinStream bs, ref Money[][] arr)
+        {
+            if (bs.Serializing)
+            {
+                if (arr == null)
+                {
+                    uint o = 0;
+                    bs.ReadWriteAsVarInt(ref o);
+                    return;
+                }
+                var len = (uint)arr.Length;
+                bs.ReadWriteAsVarInt(ref len);
+                for (int i = 0; i < len; i++)
+                {
+                    var subLen = (uint)arr[i].Length;
+                    bs.ReadWriteAsVarInt(ref subLen);
+                    for (int j = 0; j < subLen; j++)
+                    {
+                        var n = arr[i][j];
+                        bs.ReadWriteC(ref n);
+                    }
+                }
+            }
+            else
+            {
+                uint len = 0;
+                bs.ReadWriteAsVarInt(ref len);
+                if (len == 0)
+                {
+                    arr = null;
+                    return;
+                }
+                if (len > bs.MaxArraySize)
+                    throw new ArgumentOutOfRangeException("Array is too big");
+                arr = new Money[len][];
+                for (int i = 0; i < len; i++)
+                {
+                    uint subLen = 0;
+                    bs.ReadWriteAsVarInt(ref subLen);
+                    if (subLen == 0)
+                    {
+                        arr[i] = null;
+                        return;
+                    }
+                    arr[i] = new Money[subLen];
+                    for (int j = 0; j < subLen; j++)
+                    {
+                        bs.ReadWriteC(ref arr[i][j]);
+                    }
+                }
+            }
+        }
+
+        public static RPCResponse SendCommandNoThrows(this RPCClient client, string commandName, params object[] parameters)
 		{
 			return client.SendCommand(new RPCRequest
 			{
