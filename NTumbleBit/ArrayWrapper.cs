@@ -64,4 +64,37 @@ namespace NTumbleBit
 			stream.ReadWrite(ref _Elements);
 		}
 	}
+    public class TwoDArrayWrapper<T> : IBitcoinSerializable where T : IBitcoinSerializable, new()
+    {
+        /*
+          * Not really sure if this is needed. 
+        */
+        public TwoDArrayWrapper()
+        {
+
+        }
+
+        public TwoDArrayWrapper(T[][] elements)
+        {
+            _Arrays = elements;
+        }
+
+        T[][] _Arrays;
+        public T[][] Elements
+        {
+            get
+            {
+                return _Arrays;
+            }
+            set
+            {
+                _Arrays = value;
+            }
+        }
+        public void ReadWrite(BitcoinStream stream)
+        {
+            stream.ReadWriteC(ref _Arrays);
+        }
+    }
+
 }

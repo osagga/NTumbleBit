@@ -193,9 +193,9 @@ namespace NTumbleBit.ClassicTumbler.Client
 			return SendAsync<ServerCommitmentsProof>(HttpMethod.Post, revelation, $"channels/{cycleId}/{channelId}/checkrevelation");
 		}
 
-		public async Task<PuzzlePromise.ServerCommitment[]> SignHashesAsync(uint160 channelId, SignaturesRequest sigReq)
+		public async Task<PuzzlePromise.ServerCommitment[][]> SignHashesAsync(uint160 channelId, SignaturesRequest sigReq)
 		{
-			var result = await SendAsync<ArrayWrapper<PuzzlePromise.ServerCommitment>>(HttpMethod.Post, sigReq, $"channels/{cycleId}/{channelId}/signhashes").ConfigureAwait(false);
+			var result = await SendAsync<TwoDArrayWrapper<PuzzlePromise.ServerCommitment>>(HttpMethod.Post, sigReq, $"channels/{cycleId}/{channelId}/signhashes").ConfigureAwait(false);
 			return result.Elements;
 		}
 
@@ -248,7 +248,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 			return result?.Elements;
 		}
 
-		public PuzzlePromise.ServerCommitment[] SignHashes(uint160 channelId, SignaturesRequest sigReq)
+		public PuzzlePromise.ServerCommitment[][] SignHashes(uint160 channelId, SignaturesRequest sigReq)
 		{
 			return SignHashesAsync(channelId, sigReq).GetAwaiter().GetResult();
 		}

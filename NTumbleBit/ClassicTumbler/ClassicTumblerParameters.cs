@@ -24,8 +24,8 @@ namespace NTumbleBit.ClassicTumbler
 			RealPuzzleCount = solver.RealPuzzleCount;
 
 			var promise = new PromiseParameters();
-			FakeTransactionCount = promise.FakeTransactionCount;
-			RealTransactionCount = promise.RealTransactionCount;
+			FakeTransactionCount = promise.FakeTransactionCountPerLevel;
+            RealTransactionCount = promise.RealTransactionCountPerLevel;
 			FakeFormat = promise.FakeFormat;
 
 			Denomination = Money.Coins(1.0m);
@@ -228,8 +228,8 @@ namespace NTumbleBit.ClassicTumbler
 
 		public bool Check(PromiseParameters promiseParams)
 		{
-			return promiseParams.FakeTransactionCount == FakeTransactionCount &&
-				promiseParams.RealTransactionCount == RealTransactionCount;
+			return promiseParams.FakeTransactionCountPerLevel == FakeTransactionCount &&
+				promiseParams.RealTransactionCountPerLevel == RealTransactionCount;
 		}
 
 		public bool Check(SolverParameters solverParams)
@@ -253,8 +253,8 @@ namespace NTumbleBit.ClassicTumbler
 			return new PromiseParameters
 			{
 				FakeFormat = FakeFormat,
-				FakeTransactionCount = FakeTransactionCount,
-				RealTransactionCount = RealTransactionCount,
+				FakeTransactionCountPerLevel = FakeTransactionCount,
+				RealTransactionCountPerLevel = RealTransactionCount,
 				ServerKey = ServerKey.PublicKey
 			};
 		}
