@@ -1,30 +1,21 @@
 ﻿using NBitcoin;
-using NTumbleBit.ClassicTumbler;
+using NTumbleBit.ClassicTumbler.Server.Models;
 using NTumbleBit.PuzzlePromise;
 using NTumbleBit.PuzzleSolver;
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Text;
 using System.Threading.Tasks;
-using NTumbleBit.ClassicTumbler.Server.Models;
-using System.IO;
-using System.Threading;
 
 namespace NTumbleBit.ClassicTumbler.Client
 {
-	public class TumblerClient : IDisposable
+    public class TumblerClient : IDisposable
 	{
 		public TumblerClient(Network network, TumblerUrlBuilder serverAddress, int cycleId)
 		{
-			if(serverAddress == null)
-				throw new ArgumentNullException(nameof(serverAddress));
-			if(network == null)
-				throw new ArgumentNullException(nameof(network));
-			_Address = serverAddress;
-			_Network = network;
+            _Address = serverAddress ?? throw new ArgumentNullException(nameof(serverAddress));
+			_Network = network ?? throw new ArgumentNullException(nameof(network));
 			this.cycleId = cycleId;
 		}
 

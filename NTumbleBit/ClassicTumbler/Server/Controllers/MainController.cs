@@ -11,7 +11,6 @@ using System;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 // For more information on enabling Web API for empty projects, visit http://go.microsoft.com/fwlink/?LinkID=397860
@@ -22,9 +21,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 	{
 		public MainController(TumblerRuntime runtime, CustomThreadPool threadPool)
 		{
-			if(runtime == null)
-				throw new ArgumentNullException(nameof(runtime));
-			_Runtime = runtime;
+            _Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
 			_Repository = new ClassicTumblerRepository(_Runtime);
 			_ThreadPool = threadPool;
 		}
@@ -96,9 +93,8 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			var cycleParameters = Parameters.CycleGenerator.GetRegistratingCycle(height);
 			PuzzleSolution solution = null;
 			var puzzle = Parameters.VoucherKey.PublicKey.GeneratePuzzle(ref solution);
-			uint160 nonce;
-			var cycle = cycleParameters.Start;
-			var signature = Runtime.VoucherKey.Sign(NBitcoin.Utils.ToBytes((uint)cycle, true), out nonce);
+            var cycle = cycleParameters.Start;
+            var signature = Runtime.VoucherKey.Sign(NBitcoin.Utils.ToBytes((uint)cycle, true), out uint160 nonce);
 			return new UnsignedVoucherInformation
 			{
 				CycleStart = cycle,
@@ -119,9 +115,8 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 				throw new ArgumentNullException(nameof(tumblerId));
 			var height = Services.BlockExplorerService.GetCurrentHeight();
 			var cycle = GetCycle(cycleStart);
-			int keyIndex;
-			var key = Repository.GetNextKey(cycle.Start, out keyIndex);
-			if(!cycle.IsInPhase(CyclePhase.ClientChannelEstablishment, height))
+            var key = Repository.GetNextKey(cycle.Start, out int keyIndex);
+            if (!cycle.IsInPhase(CyclePhase.ClientChannelEstablishment, height))
 				throw new ActionResultException(BadRequest("invalid-phase"));
 			return new TumblerEscrowKeyResponse { PubKey = key.PubKey, KeyIndex = keyIndex };
 		}
@@ -292,11 +287,13 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 
 				var escrowKey = new Key();
 
-				var escrow = new EscrowScriptPubKeyParameters();
-				escrow.LockTime = cycle.GetTumblerLockTime();
-				escrow.Receiver = request.EscrowKey;
-				escrow.Initiator = escrowKey.PubKey;
-				var channelId = new uint160(RandomUtils.GetBytes(20));
+                var escrow = new EscrowScriptPubKeyParameters
+                {
+                    LockTime = cycle.GetTumblerLockTime(),
+                    Receiver = request.EscrowKey,
+                    Initiator = escrowKey.PubKey
+                };
+                var channelId = new uint160(RandomUtils.GetBytes(20));
 				Logs.Tumbler.LogInformation($"Cycle {cycle.Start} Asked to open channel");
 				var txOut = new TxOut(Parameters.Denomination, escrow.ToScript().WitHash.ScriptPubKey.Hash);
 
