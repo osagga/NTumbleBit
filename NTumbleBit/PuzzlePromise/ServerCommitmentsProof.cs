@@ -1,58 +1,51 @@
 ﻿using NBitcoin;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace NTumbleBit.PuzzlePromise
 {
     public class ServerCommitmentsProof : IBitcoinSerializable
-	{
-		public ServerCommitmentsProof()
-		{
+    {
+        public ServerCommitmentsProof()
+        {
 
-		}
-		public ServerCommitmentsProof(PuzzleSolution[] solutions, Quotient[] quotients)
-		{
-			if(solutions == null)
-				throw new ArgumentNullException(nameof(solutions));
-			if(quotients == null)
-				throw new ArgumentNullException(nameof(quotients));
-			FakeSolutions = solutions;
-			Quotients = quotients;
-		}
+        }
+        public ServerCommitmentsProof(PuzzleSolution[][] solutions, Quotient[][] quotients)
+        {
+            FakeSolutions = solutions ?? throw new ArgumentNullException(nameof(solutions));
+            Quotients = quotients ?? throw new ArgumentNullException(nameof(quotients));
+        }
 
-		PuzzleSolution[] _FakeSolutions;
-		public PuzzleSolution[] FakeSolutions
-		{
-			get
-			{
-				return _FakeSolutions;
-			}
-			set
-			{
-				_FakeSolutions = value;
-			}
-		}
+        PuzzleSolution[][] _FakeSolutions;
+        public PuzzleSolution[][] FakeSolutions
+        {
+            get
+            {
+                return _FakeSolutions;
+            }
+            set
+            {
+                _FakeSolutions = value;
+            }
+        }
 
 
-		Quotient[] _Quotients;
-		public Quotient[] Quotients
-		{
-			get
-			{
-				return _Quotients;
-			}
-			set
-			{
-				_Quotients = value;
-			}
-		}
+        Quotient[][] _Quotients;
+        public Quotient[][] Quotients
+        {
+            get
+            {
+                return _Quotients;
+            }
+            set
+            {
+                _Quotients = value;
+            }
+        }
 
-		public void ReadWrite(BitcoinStream stream)
-		{
-			stream.ReadWrite(ref _FakeSolutions);
-			stream.ReadWrite(ref _Quotients);
-		}
-	}
+        public void ReadWrite(BitcoinStream stream)
+        {
+            stream.ReadWriteC(ref _FakeSolutions);
+            stream.ReadWriteC(ref _Quotients);
+        }
+    }
 }

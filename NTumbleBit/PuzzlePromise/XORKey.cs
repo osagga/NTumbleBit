@@ -1,16 +1,9 @@
-﻿using NBitcoin;
-using NTumbleBit.BouncyCastle.Crypto.Digests;
-using NTumbleBit.BouncyCastle.Crypto.Generators;
-using NTumbleBit.BouncyCastle.Crypto.Parameters;
-using NTumbleBit.BouncyCastle.Math;
+﻿using NTumbleBit.BouncyCastle.Math;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace NTumbleBit.PuzzlePromise
 {
-	public class XORKey
+    public class XORKey
 	{
 		public XORKey(PuzzleSolution puzzleSolution) : this(puzzleSolution._Value)
 		{
@@ -30,10 +23,7 @@ namespace NTumbleBit.PuzzlePromise
 
 		private XORKey(BigInteger value)
 		{
-			if(value == null)
-				throw new ArgumentNullException(nameof(value));
-
-			_Value = value;
+            _Value = value ?? throw new ArgumentNullException(nameof(value));
 		}
 
 		private BigInteger _Value;
@@ -54,8 +44,31 @@ namespace NTumbleBit.PuzzlePromise
 			return encrypted;
 		}
 
+        public static byte[] XOR(byte[] data1, byte[] data2)
+        {
+            /*
+             * Given how the "key" that XOR generates is not the same as the one
+             * used in XOR anymore (check step 5), we can't use the "ToBytes()" function since
+             * it assumes that the "key" in the XOR step has a size less than N (or "KeySize").
+             * So I can either remove the call to the padding function in "ToBytes()" and use
+             * the normal XOR function above, or use this independent function and not change
+             * anything. 
+             * 
+             * If the second choice is better, then this function should move to "Utils" and 
+             * XOR is no longer needed in PromiseClientSession\PromiseServerSession since the
+             * key can be generated directly using "Utils.GenerateEncryptableInteger()".
+            */
+            var keyHash = PromiseUtils.SHA512(data1, 0, data1.Length);
+            var encrypted = new byte[data2.Length];
+            for (int i = 0; i < encrypted.Length; i++)
+            {
+                encrypted[i] = (byte)(data2[i] ^ keyHash[i % keyHash.Length]);
+            }
+            return encrypted;
+        }
 
-		private const int KeySize = 256;
+
+        private const int KeySize = 256;
 		public byte[] ToBytes()
 		{
 			byte[] keyBytes = _Value.ToByteArrayUnsigned();
