@@ -1,8 +1,6 @@
 ﻿using Microsoft.AspNetCore.Hosting;
-using TCPServer;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Server.Kestrel;
 using NBitcoin;
 using NTumbleBit.ClassicTumbler;
 using NTumbleBit.ClassicTumbler.CLI;
@@ -20,7 +18,7 @@ using System.Threading;
 
 namespace NTumbleBit.Tests
 {
-	public class TumblerServerTester : IDisposable
+    public class TumblerServerTester : IDisposable
 	{
 		public static TumblerServerTester Create([CallerMemberNameAttribute]string caller = null, bool shouldBeStandard = false)
 		{
