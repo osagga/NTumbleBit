@@ -61,9 +61,11 @@ namespace NTumbleBit.Tests
 
 				SyncNodes();
 
-				var conf = new TumblerConfiguration();
-				conf.DataDir = Path.Combine(directory, "server");
-				Directory.CreateDirectory(conf.DataDir);
+                var conf = new TumblerConfiguration
+                {
+                    DataDir = Path.Combine(directory, "server")
+                };
+                Directory.CreateDirectory(conf.DataDir);
 				File.WriteAllBytes(Path.Combine(conf.DataDir, "Tumbler.pem"), TestKeys.Default.ToBytes());
 				File.WriteAllBytes(Path.Combine(conf.DataDir, "Voucher.pem"), TestKeys.Default2.ToBytes());
 
@@ -109,10 +111,12 @@ namespace NTumbleBit.Tests
 				((RPCBlockExplorerService)runtime.Services.BlockExplorerService).BatchInterval = TimeSpan.FromMilliseconds(10);
 
 
-				var clientConfig = new TumblerClientConfiguration();
-				clientConfig.DataDir = Path.Combine(directory, "client");
-				clientConfig.AllowInsecure = !shouldBeStandard;
-				Directory.CreateDirectory(clientConfig.DataDir);
+                var clientConfig = new TumblerClientConfiguration
+                {
+                    DataDir = Path.Combine(directory, "client"),
+                    AllowInsecure = !shouldBeStandard
+                };
+                Directory.CreateDirectory(clientConfig.DataDir);
 				clientConfig.Network = conf.Network;
 				clientConfig.CheckIp = false;
 				clientConfig.TorMandatory = false;
@@ -238,9 +242,11 @@ namespace NTumbleBit.Tests
 			get
 			{
 				var address = ((IServer)(_Host.Services.GetService(typeof(IServer)))).Features.Get<IServerAddressesFeature>().Addresses.FirstOrDefault();
-				var builder = new UriBuilder(address);
-				builder.Path = $"api/v1/tumblers/{ServerRuntime.ClassicTumblerParameters.GetHash()}";
-				return builder.Uri;
+                var builder = new UriBuilder(address)
+                {
+                    Path = $"api/v1/tumblers/{ServerRuntime.ClassicTumblerParameters.GetHash()}"
+                };
+                return builder.Uri;
 			}
 		}
 

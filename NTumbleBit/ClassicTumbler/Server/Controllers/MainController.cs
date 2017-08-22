@@ -1,32 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using NBitcoin;
+using NBitcoin.Crypto;
+using NTumbleBit.ClassicTumbler.Server.Models;
+using NTumbleBit.Logging;
 using NTumbleBit.PuzzlePromise;
 using NTumbleBit.PuzzleSolver;
-using NTumbleBit.ClassicTumbler;
-using System.Net;
-using NBitcoin;
 using NTumbleBit.Services;
-using NBitcoin.Crypto;
-using NTumbleBit.Logging;
-using Microsoft.Extensions.Logging;
-using NTumbleBit.ClassicTumbler.Server.Models;
-using System.Text;
+using System;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Threading.Tasks;
 
 // For more information on enabling Web API for empty projects, visit http://go.microsoft.com/fwlink/?LinkID=397860
 
 namespace NTumbleBit.ClassicTumbler.Server.Controllers
 {
-	public class MainController : Controller
+    public class MainController : Controller
 	{
 		public MainController(TumblerRuntime runtime)
 		{
-			if(runtime == null)
-				throw new ArgumentNullException(nameof(runtime));
-			_Runtime = runtime;
+            _Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
 			_Repository = new ClassicTumblerRepository(_Runtime);
 		}
 
@@ -80,7 +75,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			ClassicTumblerParameters tumblerId)
 		{
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			return tumblerId;
 		}
 
@@ -90,14 +85,13 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			ClassicTumblerParameters tumblerId)
 		{
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			var height = Services.BlockExplorerService.GetCurrentHeight();
 			var cycleParameters = Parameters.CycleGenerator.GetRegistratingCycle(height);
 			PuzzleSolution solution = null;
 			var puzzle = Parameters.VoucherKey.PublicKey.GeneratePuzzle(ref solution);
-			uint160 nonce;
-			var cycle = cycleParameters.Start;
-			var signature = Runtime.VoucherKey.Sign(NBitcoin.Utils.ToBytes((uint)cycle, true), out nonce);
+            var cycle = cycleParameters.Start;
+            var signature = Runtime.VoucherKey.Sign(NBitcoin.Utils.ToBytes((uint)cycle, true), out uint160 nonce);
 			return new UnsignedVoucherInformation
 			{
 				CycleStart = cycle,
@@ -115,12 +109,11 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			int cycleStart)
 		{
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			var height = Services.BlockExplorerService.GetCurrentHeight();
 			var cycle = GetCycle(cycleStart);
-			int keyIndex;
-			var key = Repository.GetNextKey(cycle.Start, out keyIndex);
-			if(!cycle.IsInPhase(CyclePhase.ClientChannelEstablishment, height))
+            var key = Repository.GetNextKey(cycle.Start, out int keyIndex);
+            if (!cycle.IsInPhase(CyclePhase.ClientChannelEstablishment, height))
 				throw new ActionResultException(BadRequest("invalid-phase"));
 			return new TumblerEscrowKeyResponse { PubKey = key.PubKey, KeyIndex = keyIndex };
 		}
@@ -145,7 +138,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			[FromBody]SignVoucherRequest request)
 		{
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			if(request.UnsignedVoucher == null)
 				throw new ActionResultException(BadRequest("Missing UnsignedVoucher"));
 			if(request.MerkleProof == null)
@@ -246,7 +239,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			[FromBody] OpenChannelRequest request)
 		{
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			var height = Services.BlockExplorerService.GetCurrentHeight();
 			if(Repository.IsUsed(request.CycleStart, request.Nonce))
 				throw new ActionResultException(BadRequest("duplicate-query"));
@@ -263,11 +256,13 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 
 				var escrowKey = new Key();
 
-				var escrow = new EscrowScriptPubKeyParameters();
-				escrow.LockTime = cycle.GetTumblerLockTime();
-				escrow.Receiver = request.EscrowKey;
-				escrow.Initiator = escrowKey.PubKey;
-				var channelId = new uint160(RandomUtils.GetBytes(20));
+                var escrow = new EscrowScriptPubKeyParameters
+                {
+                    LockTime = cycle.GetTumblerLockTime(),
+                    Receiver = request.EscrowKey,
+                    Initiator = escrowKey.PubKey
+                };
+                var channelId = new uint160(RandomUtils.GetBytes(20));
 				Logs.Tumbler.LogInformation($"Cycle {cycle.Start} Asked to open channel");
 				var txOut = new TxOut(Parameters.Denomination, escrow.ToScript().Hash);
 
@@ -345,7 +340,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			[FromBody]SignaturesRequest sigReq)
 		{
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetPromiseServerSession(cycleId, channelId, CyclePhase.TumblerChannelEstablishment);
 			AssertNotDuplicateQuery(cycleId, channelId);
 			var hashes = session.SignHashes(sigReq);
@@ -362,7 +357,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			[FromBody]PuzzlePromise.ClientRevelation revelation)
 		{
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetPromiseServerSession(cycleId, channelId, CyclePhase.TumblerChannelEstablishment);
 			AssertNotDuplicateQuery(cycleId, channelId);
 
@@ -387,7 +382,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 		private SolverServerSession GetSolverServerSession(int cycleId, uint160 channelId, CyclePhase expectedPhase)
 		{
 			if(channelId == null)
-				throw new ArgumentNullException("channelId");
+				throw new ArgumentNullException(nameof(channelId));
 			var height = Services.BlockExplorerService.GetCurrentHeight();
 			var session = Repository.GetSolverServerSession(cycleId, channelId);
 			if(session == null)
@@ -412,7 +407,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			[FromBody]PuzzleValue[] puzzles)
 		{
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.PaymentPhase);
 			AssertNotDuplicateQuery(cycleId, channelId);
 			var commitments = session.SolvePuzzles(puzzles);
@@ -438,7 +433,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			[FromBody]PuzzleSolver.ClientRevelation revelation)
 		{
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.PaymentPhase);
 			AssertNotDuplicateQuery(cycleId, channelId);
 			var solutions = session.CheckRevelation(revelation);
@@ -455,7 +450,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			[FromBody]BlindFactor[] blindFactors)
 		{
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.PaymentPhase);
 			AssertNotDuplicateQuery(cycleId, channelId);
 			var feeRate = await Services.FeeService.GetFeeRateAsync();
@@ -474,7 +469,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 		{
 			var signature = wrapper?.Signature;
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			if(signature == null)
 				throw new ActionResultException(BadRequest("Missing Signature"));
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.TumblerCashoutPhase);
@@ -533,7 +528,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 		{
 			var clientSignature = wrapper?.Signature;
 			if(tumblerId == null)
-				throw new ArgumentNullException("tumblerId");
+				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.TumblerCashoutPhase);
 			AssertNotDuplicateQuery(cycleId, channelId);
 			if(session.Status != SolverServerStates.WaitingEscape)
