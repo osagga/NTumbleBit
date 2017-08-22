@@ -36,9 +36,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 		public PaymentStateMachine(
 			TumblerClientRuntime runtime)
 		{
-			if(runtime == null)
-				throw new ArgumentNullException("runtime");
-			Runtime = runtime;
+            Runtime = runtime ?? throw new ArgumentNullException("runtime");
 		}
 
 
@@ -347,7 +345,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var revelation = PromiseClientSession.Reveal(commitments);
 							var proof = bob.CheckRevelation(PromiseClientSession.Id, revelation);
 							var puzzle = PromiseClientSession.CheckCommitmentProof(proof);
-							SolverClientSession.AcceptPuzzle(puzzle);
+							SolverClientSession.AcceptPuzzle(puzzle[0]);
 							Status = PaymentStateMachineStatus.TumblerChannelBroadcasted;
 						}
 						else if(Status == PaymentStateMachineStatus.TumblerChannelBroadcasted)
@@ -393,7 +391,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 										solutionKeys = alice.FulfillOffer(SolverClientSession.Id, offerSignature);
 										SolverClientSession.CheckSolutions(solutionKeys);
 										var tumblingSolution = SolverClientSession.GetSolution();
-										var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution);
+                                        // TODO: Figure out which puzzle is passed here.
+										var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, 0);
 										Logs.Client.LogInformation("Got puzzle solution cooperatively from the tumbler");
 										Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
 										Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.TumblerCashout, correlation, new TrustedBroadcastRequest()
@@ -432,7 +431,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 									Logs.Client.LogInformation("Puzzle solution recovered from tumbler's fulfill transaction");
 									Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
 									var tumblingSolution = SolverClientSession.GetSolution();
-									var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution);
+                                    // TODO: Figure out which puzzle is passed here.
+                                    var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, 0);
 									Tracker.TransactionCreated(cycle.Start, TransactionType.TumblerCashout, transaction.GetHash(), correlation);
 									Services.BroadcastService.BroadcastAsync(transaction).GetAwaiter().GetResult();
 								}

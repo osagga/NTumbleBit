@@ -337,7 +337,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 		}
 
 		[HttpPost("api/v1/tumblers/{tumblerId}/channels/{cycleId}/{channelId}/signhashes")]
-		public PuzzlePromise.ServerCommitment[] SignHashes(
+		public PuzzlePromise.ServerCommitment[][] SignHashes(
 			[ModelBinder(BinderType = typeof(TumblerParametersModelBinder))]
 			ClassicTumblerParameters tumblerId,
 			int cycleId,
@@ -365,7 +365,11 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 				throw new ArgumentNullException("tumblerId");
 			var session = GetPromiseServerSession(cycleId, channelId, CyclePhase.TumblerChannelEstablishment);
 			AssertNotDuplicateQuery(cycleId, channelId);
-			var proof = session.CheckRevelation(revelation);
+
+            // TODO: Need to figure out how to get Bob's key from here
+            var feeRate = new NBitcoin.FeeRate(Money.Satoshis(1));
+            var proof = session.CheckRevelation(revelation, new PubKey("0xFIX_ME").Hash, feeRate);
+
 			Repository.Save(cycleId, session);
 			return proof;
 		}
