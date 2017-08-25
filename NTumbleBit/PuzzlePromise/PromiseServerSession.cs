@@ -124,7 +124,7 @@ namespace NTumbleBit.PuzzlePromise
 
             var hashesCount = sigRequest.Hashes.Select(a => a.Length).Sum();
             if (hashesCount != Parameters.GetTotalTransactionsCount())
-                throw new ArgumentException($"Incorrect number of hashes, expected {sigRequest.Hashes.Length}");
+                throw new ArgumentException($"Incorrect number of hashes, expected {Parameters.GetTotalTransactionsCount()}");
 
             AssertState(PromiseServerStates.WaitingHashes);
 
@@ -145,7 +145,7 @@ namespace NTumbleBit.PuzzlePromise
                     // This can be replaced by "Utils.xxx" if padding is not important.
                     var key = (new XORKey(Parameters.ServerKey)).ToBytes(); // Generates a random epsilon.
                     previousSolutions[j] = Utils.Combine(key, previousSolutions[j]);
-                    var paddedSolutions = new PuzzleSolution(Utils.Combine(BitConverter.GetBytes(i), BitConverter.GetBytes(j), previousSolutions[j]));
+                    var paddedSolutions = new PuzzleSolution(Utils.Combine(NBitcoin.Utils.ToBytes((uint)i, true), NBitcoin.Utils.ToBytes((uint)j, true), previousSolutions[j]));
                     // This function needs to be approved "XOR".
                     var promise = XORKey.XOR(paddedSolutions._Value.ToByteArrayUnsigned(), ecdsaDER);
                     PuzzleSolution solution = new PuzzleSolution(key); // Epsilon

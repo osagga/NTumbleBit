@@ -390,7 +390,8 @@ namespace NTumbleBit.PuzzlePromise
                         throw new PuzzleException("Invalid puzzle solution");
 
                     previousSolutions[j] = Utils.Combine(solution.ToBytes(), previousSolutions[j]);
-                    var paddedSolution = new PuzzleSolution(Utils.Combine(BitConverter.GetBytes(i), BitConverter.GetBytes(fakeHash.Index), previousSolutions[j]));
+                    
+                    var paddedSolution = new PuzzleSolution(Utils.Combine(NBitcoin.Utils.ToBytes((uint)i, true), NBitcoin.Utils.ToBytes((uint)fakeHash.Index, true), previousSolutions[j]));
                     if (!IsValidSignature(paddedSolution, fakeHash, out ECDSASignature sig))
                         throw new PuzzleException("Invalid ECDSA signature");
                 }

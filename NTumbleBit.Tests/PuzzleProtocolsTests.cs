@@ -206,6 +206,7 @@ namespace NTumbleBit.Tests
 
             for (int i = 0; i < puzzlesToSolve.Length; i++)
             {
+                // Doesn't work for now! Need to figure how Bob will be spending the puzzles.
                 var solution = key.SolvePuzzle(puzzlesToSolve[i]);
                 // I'm not sure if GetSignedTransactions should handle all payments or only one payment at a time.
                 var transactions = client.GetSignedTransactions(solution, i).ToArray();
