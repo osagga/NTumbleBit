@@ -127,11 +127,13 @@ namespace NTumbleBit.PuzzlePromise
                 throw new ArgumentException($"Incorrect number of hashes, expected {Parameters.GetTotalTransactionsCount()}");
 
             AssertState(PromiseServerStates.WaitingHashes);
-
+            // 2D array of pairs of puzzles and promises (z_i, c_i).
             var promises = new ServerCommitment[Parameters.PaymentsCount][];
-            // list of sigmas
+            // 2D array of encrypted signatures with their solutions.
             var encryptedSignatures = new EncryptedSignature[Parameters.PaymentsCount][];
+            // 1-D array is used to store the epsilons for each column to be used when Hashing.
             var previousSolutions = new byte[Parameters.GetTotalTransactionsCountPerLevel()][];
+
             previousSolutions = previousSolutions.Select(a => new byte[0]).ToArray(); // Initialize to empty array of bytes
             for (int i = 0; i < Parameters.PaymentsCount; i++)
             {
@@ -140,15 +142,20 @@ namespace NTumbleBit.PuzzlePromise
                 for (int j = 0; j < promises[i].Length; j++)
                 {
                     var hash = sigRequest.Hashes[i][j];
+                    // Sign the hash value
                     var ecdsa = InternalState.EscrowKey.Sign(hash);
+                    // Convert Signature to Bytes.
                     var ecdsaDER = ecdsa.ToDER();
-                    // This can be replaced by "Utils.xxx" if padding is not important.
-                    var key = (new XORKey(Parameters.ServerKey)).ToBytes(); // Generates a random epsilon.
+                    // This can be replaced by "Utils.GenerateEncryptableInteger(Key)" if padding when XORing is not important.
+                    var key = (new XORKey(Parameters.ServerKey)).ToBytes(); // This just generates a random epsilon.
+                    // Append the new epsilon to the list of epsilons we have for that column to create "epsilon_{i-1,j}|| . . . , epsilon_{0,j}".
                     previousSolutions[j] = Utils.Combine(key, previousSolutions[j]);
+                    // Create the padded solution with the following format "i||j||epsilon_{i,j}||epsilon_{i-1,j}|| . . . , epsilon_{0,j}"
                     var paddedSolutions = new PuzzleSolution(Utils.Combine(NBitcoin.Utils.ToBytes((uint)i, true), NBitcoin.Utils.ToBytes((uint)j, true), previousSolutions[j]));
-                    // This function needs to be approved "XOR".
-                    var promise = XORKey.XOR(paddedSolutions._Value.ToByteArrayUnsigned(), ecdsaDER);
+                    // Hash and XOR the padded solution with the signature we have.
+                    var promise = XORKey.XOR(paddedSolutions._Value.ToByteArrayUnsigned(), ecdsaDER); // This function needs to be approved "XOR".
                     PuzzleSolution solution = new PuzzleSolution(key); // Epsilon
+                    // Encrypt the epsilon value using RSA
                     var puzzle = Parameters.ServerKey.GeneratePuzzle(ref solution);
                     promises[i][j] = new ServerCommitment(puzzle.PuzzleValue, promise);
                     encryptedSignatures[i][j] = new EncryptedSignature(ecdsa, hash, solution);
