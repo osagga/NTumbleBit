@@ -436,7 +436,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 								solutionKeys = alice.FulfillOffer(SolverClientSession.Id, offerSignature);
 								SolverClientSession.CheckSolutions(solutionKeys);
 								var tumblingSolution = SolverClientSession.GetSolution();
-								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution);
+								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, 0);
 								Logs.Client.LogDebug("Got puzzle solution cooperatively from the tumbler");
 								Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
 								Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.TumblerCashout, correlation, new TrustedBroadcastRequest()
@@ -478,7 +478,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 								NeedSave = true;
 								Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
 								var tumblingSolution = SolverClientSession.GetSolution();
-								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution);
+								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, 0);
 								Tracker.TransactionCreated(cycle.Start, TransactionType.TumblerCashout, transaction.GetHash(), correlation);
 								Services.BroadcastService.BroadcastAsync(transaction).GetAwaiter().GetResult();
 							}
