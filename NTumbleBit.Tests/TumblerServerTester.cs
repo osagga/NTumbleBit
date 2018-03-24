@@ -15,6 +15,7 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading;
+using Newtonsoft.Json.Linq;
 
 namespace NTumbleBit.Tests
 {
@@ -49,14 +50,22 @@ namespace NTumbleBit.Tests
 				}
 
 				_NodeBuilder = NodeBuilder.Create(directory);
+				_NodeBuilder.ConfigParameters.Add("prematurewitness", "1");
+				_NodeBuilder.ConfigParameters.Add("walletprematurewitness", "1");
+
 				_TumblerNode = _NodeBuilder.CreateNode(false);
 				_AliceNode = _NodeBuilder.CreateNode(false);
 				_BobNode = _NodeBuilder.CreateNode(false);
-
+				
 				Directory.CreateDirectory(directory);
 
 				_NodeBuilder.StartAll();
 
+				//Activate segwit
+				SyncNodes();
+				_TumblerNode.Generate(440);
+				_TumblerNode.CreateRPCClient().SendToAddress(_AliceNode.CreateRPCClient().GetNewAddress(), Money.Coins(100m));
+				_TumblerNode.Generate(1);
 				SyncNodes();
 
                 var conf = new TumblerConfiguration
@@ -79,10 +88,10 @@ namespace NTumbleBit.Tests
 				conf.NoRSAProof = !shouldBeStandard;
 				if(!shouldBeStandard)
 				{
-					conf.ClassicTumblerParameters.FakePuzzleCount /= 4;
-					conf.ClassicTumblerParameters.FakeTransactionCount /= 4;
-					conf.ClassicTumblerParameters.RealTransactionCount /= 4;
-					conf.ClassicTumblerParameters.RealPuzzleCount /= 4;
+					conf.ClassicTumblerParameters.FakePuzzleCount = 10;
+					conf.ClassicTumblerParameters.FakeTransactionCount = 10;
+					conf.ClassicTumblerParameters.RealTransactionCount = 10;
+					conf.ClassicTumblerParameters.RealPuzzleCount = 2;
 					conf.ClassicTumblerParameters.CycleGenerator.FirstCycle.Start = 105;
 				}
 				else
@@ -105,6 +114,7 @@ namespace NTumbleBit.Tests
 				//Overrides server fee
 				((RPCFeeService)runtime.Services.FeeService).FallBackFeeRate = new FeeRate(Money.Satoshis(100), 1);
 				((RPCWalletService)runtime.Services.WalletService).BatchInterval = TimeSpan.FromMilliseconds(10);
+				((RPCWalletService)runtime.Services.WalletService).AddressGenerationBatchInterval = TimeSpan.FromMilliseconds(10);
 				((RPCBroadcastService)runtime.Services.BroadcastService).BatchInterval = TimeSpan.FromMilliseconds(10);
 				((RPCBlockExplorerService)runtime.Services.BlockExplorerService).BatchInterval = TimeSpan.FromMilliseconds(10);
 

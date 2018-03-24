@@ -35,19 +35,9 @@ namespace NTumbleBit.Logging
 			_newLineWithMessagePadding = Environment.NewLine + _messagePadding;
 		}
 
-		public CustomerConsoleLogger(string name, Func<string, LogLevel, bool> filter, bool includeScopes)
-			: this(name, filter, includeScopes, new ConsoleLoggerProcessor())
+		public CustomerConsoleLogger(string name, Func<string, LogLevel, bool> filter, bool includeScopes, ConsoleLoggerProcessor loggerProcessor)
 		{
-		}
-
-		internal CustomerConsoleLogger(string name, Func<string, LogLevel, bool> filter, bool includeScopes, ConsoleLoggerProcessor loggerProcessor)
-		{
-			if(name == null)
-			{
-				throw new ArgumentNullException(nameof(name));
-			}
-
-			Name = name;
+            Name = name ?? throw new ArgumentNullException(nameof(name));
 			Filter = filter ?? ((category, logLevel) => true);
 			IncludeScopes = includeScopes;
 
@@ -71,12 +61,7 @@ namespace NTumbleBit.Logging
 			}
 			set
 			{
-				if(value == null)
-				{
-					throw new ArgumentNullException(nameof(value));
-				}
-
-				_queueProcessor.Console = value;
+                _queueProcessor.Console = value ?? throw new ArgumentNullException(nameof(value));
 			}
 		}
 
@@ -88,12 +73,7 @@ namespace NTumbleBit.Logging
 			}
 			set
 			{
-				if(value == null)
-				{
-					throw new ArgumentNullException(nameof(value));
-				}
-
-				_filter = value;
+                _filter = value ?? throw new ArgumentNullException(nameof(value));
 			}
 		}
 
@@ -357,7 +337,7 @@ namespace NTumbleBit.Logging
 		// for testing
 		internal virtual void WriteMessage(LogMessageEntry message)
 		{
-			var dateTime = $"[{DateTimeOffset.Now.ToString("yy-MM-dd hh:mm:ss")}] ";
+			var dateTime = $"[{DateTimeOffset.Now.ToString("yy-MM-dd HH:mm:ss")}] ";
 			Console.Write(dateTime, message.MessageColor, message.MessageColor);
 			if(message.LevelString != null)
 			{

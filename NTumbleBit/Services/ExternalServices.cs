@@ -1,4 +1,5 @@
-﻿using NBitcoin.RPC;
+﻿using NBitcoin;
+using NBitcoin.RPC;
 using NTumbleBit.Services.RPC;
 using System;
 using System.Collections.Generic;
@@ -19,8 +20,8 @@ namespace NTumbleBit.Services
 				MinimumFeeRate = minimumRate
 			};
 
-			// on regtest the estimatefee always fails
-			if (rpc.Network == NBitcoin.Network.RegTest)
+			// on regtest or testnet the estimatefee often fails
+			if (rpc.Network == NBitcoin.Network.RegTest || rpc.Network == Network.TestNet)
 			{
 				service.FeeService = new RPCFeeService(rpc)
 				{
@@ -32,7 +33,8 @@ namespace NTumbleBit.Services
 			var cache = new RPCWalletCache(rpc, repository);
 			service.WalletService = new RPCWalletService(rpc)
 			{
-				BatchInterval = useBatching ? TimeSpan.FromSeconds(60) : TimeSpan.Zero
+				BatchInterval = useBatching ? TimeSpan.FromSeconds(160) : clientBatchInterval,
+				AddressGenerationBatchInterval = useBatching ? TimeSpan.FromSeconds(1) : TimeSpan.FromMilliseconds(10)
 			};
 			service.BroadcastService = new RPCBroadcastService(rpc, cache, repository)
 			{

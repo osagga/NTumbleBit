@@ -61,9 +61,7 @@ namespace NTumbleBit.PuzzleSolver
 
 		public SolverClientSession(SolverParameters parameters)
 		{
-			if(parameters == null)
-				throw new ArgumentNullException(nameof(parameters));
-			_Parameters = parameters;
+            _Parameters = parameters ?? throw new ArgumentNullException(nameof(parameters));
 			InternalState = new State();
 		}
 
@@ -110,18 +108,16 @@ namespace NTumbleBit.PuzzleSolver
 				{
 					commitments[i] = _PuzzleElements[i].Commitment;
 					puzzles[i] = _PuzzleElements[i].Puzzle.PuzzleValue;
-					var fake = _PuzzleElements[i] as FakePuzzle;
-					if(fake != null)
-					{
-						fakeSolutions[fakeI++] = fake.Solution;
-					}
+                    if (_PuzzleElements[i] is FakePuzzle fake)
+                    {
+                        fakeSolutions[fakeI++] = fake.Solution;
+                    }
 
-					var real = _PuzzleElements[i] as RealPuzzle;
-					if(real != null)
-					{
-						blinds[realI++] = real.BlindFactor;
-					}
-				}
+                    if (_PuzzleElements[i] is RealPuzzle real)
+                    {
+                        blinds[realI++] = real.BlindFactor;
+                    }
+                }
 				state.FakeSolutions = fakeSolutions;
 				state.BlindFactors = blinds;
 				state.Commitments = commitments;
@@ -207,10 +203,8 @@ namespace NTumbleBit.PuzzleSolver
 
 		public void AcceptPuzzle(PuzzleValue puzzleValue)
 		{
-			if(puzzleValue == null)
-				throw new ArgumentNullException(nameof(puzzleValue));
-			AssertState(SolverClientStates.WaitingPuzzle);
-			InternalState.Puzzle = puzzleValue;
+            AssertState(SolverClientStates.WaitingPuzzle);
+			InternalState.Puzzle = puzzleValue ?? throw new ArgumentNullException(nameof(puzzleValue));
 			InternalState.Status = SolverClientStates.WaitingGeneratePuzzles;
 		}
 
@@ -315,7 +309,7 @@ namespace NTumbleBit.PuzzleSolver
 			}.ToScript();
 
 			var escrowCoin = InternalState.EscrowedCoin;
-			var txOut = new TxOut(escrowCoin.Amount - offerInformation.Fee, offerScript.Hash);
+			var txOut = new TxOut(escrowCoin.Amount - offerInformation.Fee, offerScript.WitHash.ScriptPubKey.Hash);
 			var offerCoin = new Coin(escrowCoin.Outpoint, txOut).ToScriptCoin(offerScript);
 
 
@@ -356,6 +350,7 @@ namespace NTumbleBit.PuzzleSolver
 			tx.Inputs[0].ScriptSig = new Script(
 				Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
 				Op.GetPushOp(InternalState.OfferCoin.Redeem.ToBytes()));
+			tx.Inputs[0].Witnessify();
 			tx.Outputs[0].Value -= feeRate.GetFee(tx.GetVirtualSize());
 
 			var redeemTransaction = new TrustedBroadcastRequest
@@ -394,7 +389,7 @@ namespace NTumbleBit.PuzzleSolver
 			AssertState(SolverClientStates.WaitingPuzzleSolutions);
 			foreach(var input in fulfillTx.Inputs)
 			{
-				var solutions = SolverScriptBuilder.ExtractSolutions(input.ScriptSig, Parameters.RealPuzzleCount);
+				var solutions = SolverScriptBuilder.ExtractSolutions(input.WitScript, Parameters.RealPuzzleCount);
 				if(solutions == null)
 					continue;
 				try
@@ -469,7 +464,7 @@ namespace NTumbleBit.PuzzleSolver
 		private void AssertState(SolverClientStates state)
 		{
 			if(state != InternalState.Status)
-				throw new InvalidOperationException("Invalid state, actual " + InternalState.Status + " while expected is " + state);
+				throw new InvalidStateException("Invalid state, actual " + InternalState.Status + " while expected is " + state);
 		}
 	}
 }

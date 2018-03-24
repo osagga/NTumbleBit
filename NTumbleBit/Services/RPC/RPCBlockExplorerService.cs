@@ -7,25 +7,20 @@ using NBitcoin;
 using Newtonsoft.Json.Linq;
 using NBitcoin.DataEncoders;
 using System.Threading;
+using System.Collections.Concurrent;
 
 namespace NTumbleBit.Services.RPC
 {
 	public class RPCBlockExplorerService : IBlockExplorerService
 	{
 		RPCWalletCache _Cache;
-		RPCBatch _RPCBatch;
+		RPCBatch<bool> _RPCBatch;
 		public RPCBlockExplorerService(RPCClient client, RPCWalletCache cache, IRepository repo)
 		{
-			if(client == null)
-				throw new ArgumentNullException(nameof(client));
-			if(repo == null)
-				throw new ArgumentNullException("repo");
-			if(cache == null)
-				throw new ArgumentNullException("cache");
-			_RPCClient = client;
-			_Repo = repo;
-			_Cache = cache;
-			_RPCBatch = new RPCBatch(client);
+            _RPCClient = client ?? throw new ArgumentNullException(nameof(client));
+			_Repo = repo ?? throw new ArgumentNullException("repo");
+			_Cache = cache ?? throw new ArgumentNullException("cache");
+			_RPCBatch = new RPCBatch<bool>(client);
 		}
 
 		public TimeSpan BatchInterval
@@ -70,11 +65,11 @@ namespace NTumbleBit.Services.RPC
 			}
 		}
 
-		public ICollection<TransactionInformation> GetTransactions(Script scriptPubKey, bool withProof)
+		public async Task<ICollection<TransactionInformation>> GetTransactionsAsync(Script scriptPubKey, bool withProof)
 		{
 			if(scriptPubKey == null)
 				throw new ArgumentNullException(nameof(scriptPubKey));
-			
+
 
 			var results = _Cache
 										.GetEntriesFromScript(scriptPubKey)
@@ -86,22 +81,47 @@ namespace NTumbleBit.Services.RPC
 
 			if(withProof)
 			{
+
 				foreach(var tx in results.ToList())
 				{
-					MerkleBlock proof = null;
-					var result = RPCClient.SendCommandNoThrows("gettxoutproof", new JArray(tx.Transaction.GetHash().ToString()));
-					if(result == null || result.Error != null)
+					var completion = new TaskCompletionSource<MerkleBlock>();
+					bool isRequester = true;
+					var txid = tx.Transaction.GetHash();
+					_GettingProof.AddOrUpdate(txid, completion, (k, o) =>
 					{
-						results.Remove(tx);
-						continue;
+						isRequester = false;
+						completion = o;
+						return o;
+					});
+					if(isRequester)
+					{
+						try
+						{
+							MerkleBlock proof = null;
+							var result = await RPCClient.SendCommandNoThrowsAsync("gettxoutproof", new JArray(tx.Transaction.GetHash().ToString())).ConfigureAwait(false);
+							if(result == null || result.Error != null)
+							{
+								completion.TrySetResult(null);
+								continue;
+							}
+							proof = new MerkleBlock();
+							proof.ReadWrite(Encoders.Hex.DecodeData(result.ResultString));
+							tx.MerkleProof = proof;
+							completion.TrySetResult(proof);
+						}
+						catch(Exception ex) { completion.TrySetException(ex); }
+						finally { _GettingProof.TryRemove(txid, out completion); }
 					}
-					proof = new MerkleBlock();
-					proof.ReadWrite(Encoders.Hex.DecodeData(result.ResultString));
-					tx.MerkleProof = proof;
+
+					var merkleBlock = await completion.Task.ConfigureAwait(false);
+					if(merkleBlock == null)
+						results.Remove(tx);
 				}
 			}
 			return results;
 		}
+
+		ConcurrentDictionary<uint256, TaskCompletionSource<MerkleBlock>> _GettingProof = new ConcurrentDictionary<uint256, TaskCompletionSource<MerkleBlock>>();
 
 		private List<TransactionInformation> QueryWithListReceivedByAddress(bool withProof, BitcoinAddress address)
 		{
@@ -118,7 +138,7 @@ namespace NTumbleBit.Services.RPC
 				//May have duplicates
 				if(!resultsSet.Contains(txId))
 				{
-					var tx = GetTransaction(txId);
+					var tx = GetTransaction(txId, false);
 					if(tx == null || (withProof && tx.Confirmations == 0))
 						continue;
 					resultsSet.Add(txId);
@@ -159,8 +179,10 @@ namespace NTumbleBit.Services.RPC
 			return results;
 		}
 
-		public TransactionInformation GetTransaction(uint256 txId)
+		public TransactionInformation GetTransaction(uint256 txId, bool withProof)
 		{
+			if(txId == null)
+				throw new ArgumentNullException(nameof(txId));
 			try
 			{
 				//check in the wallet tx
@@ -176,10 +198,24 @@ namespace NTumbleBit.Services.RPC
 				var confirmations = result.Result["confirmations"];
 				var confCount = confirmations == null ? 0 : Math.Max(0, (int)confirmations);
 
+				MerkleBlock proof = null;
+				if(withProof)
+				{
+					if(confCount == 0)
+						return null;
+
+					var result1 = RPCClient.SendCommandNoThrows("gettxoutproof", new JArray(tx.GetHash().ToString()));
+					if(result1 == null || result1.Error != null)
+						return null;
+					proof = new MerkleBlock();
+					proof.ReadWrite(Encoders.Hex.DecodeData(result1.ResultString));
+				}
+
 				return new TransactionInformation
 				{
 					Confirmations = confCount,
-					Transaction = tx
+					Transaction = tx,
+					MerkleProof = proof
 				};
 			}
 			catch(RPCException) { return null; }
@@ -187,7 +223,7 @@ namespace NTumbleBit.Services.RPC
 
 		public async Task TrackAsync(Script scriptPubkey)
 		{
-			await _RPCBatch.Do(async batch =>
+			await _RPCBatch.WaitTransactionAsync(async batch =>
 			{
 				await batch.ImportAddressAsync(scriptPubkey, "", false).ConfigureAwait(false);
 				return true;
@@ -204,16 +240,18 @@ namespace NTumbleBit.Services.RPC
 
 		public async Task<bool> TrackPrunedTransactionAsync(Transaction transaction, MerkleBlock merkleProof)
 		{
-			return await _RPCBatch.Do(async batch =>
+			bool success = false;
+			await _RPCBatch.WaitTransactionAsync(async batch =>
 			{
 				var result = await batch.SendCommandNoThrowsAsync("importprunedfunds", transaction.ToHex(), Encoders.Hex.EncodeData(merkleProof.ToBytes())).ConfigureAwait(false);
-				var success = result != null && result.Error == null;
+				success = result != null && result.Error == null;
 				if(success)
 				{
 					_Cache.ImportTransaction(transaction, GetBlockConfirmations(merkleProof.Header.GetHash()));
 				}
 				return success;
 			}).ConfigureAwait(false);
+			return success;
 		}
 	}
 }

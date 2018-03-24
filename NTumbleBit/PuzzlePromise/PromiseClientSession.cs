@@ -255,6 +255,7 @@ namespace NTumbleBit.PuzzlePromise
                 Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
                 Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
                 );
+            cashout.Inputs[0].Witnessify();
             cashout.AddOutput(new TxOut(InternalState.EscrowedCoin.Amount, cashoutDestination));
             cashout.Outputs[0].Value -= feeRate.GetFee(cashout.GetVirtualSize());
 
@@ -475,13 +476,14 @@ namespace NTumbleBit.PuzzlePromise
                     continue;
                 var transaction = hash.GetTransaction();
                 var bobSig = transaction.SignInput(InternalState.EscrowKey, InternalState.EscrowedCoin);
-                transaction.Inputs[0].ScriptSig = new Script(
-                    Op.GetPushOp(new TransactionSignature(tumblerSig, SigHash.All).ToBytes()),
-                    Op.GetPushOp(bobSig.ToBytes()),
-                    Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
-                    );
-                if (transaction.Inputs.AsIndexedInputs().First().VerifyScript(InternalState.EscrowedCoin))
-                    yield return transaction;
+				transaction.Inputs[0].WitScript = new WitScript(
+					Op.GetPushOp(new TransactionSignature(tumblerSig, SigHash.All).ToBytes()),
+					Op.GetPushOp(bobSig.ToBytes()),
+					Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
+					);
+				//transaction is already witnessified
+				if(transaction.Inputs.AsIndexedInputs().First().VerifyScript(InternalState.EscrowedCoin))
+					yield return transaction;
             }
         }
 
@@ -515,9 +517,9 @@ namespace NTumbleBit.PuzzlePromise
         }
 
         private void AssertState(PromiseClientStates state)
-        {
-            if (state != InternalState.Status)
-                throw new InvalidOperationException($"Invalid state, actual {InternalState.Status} while expected is {state}");
-        }
+		{
+			if(state != InternalState.Status)
+				throw new InvalidStateException("Invalid state, actual " + InternalState.Status + " while expected is " + state);
+		}
     }
 }

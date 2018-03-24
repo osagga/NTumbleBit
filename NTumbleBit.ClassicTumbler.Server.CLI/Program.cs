@@ -30,10 +30,9 @@ namespace NTumbleBit.ClassicTumbler.Server.CLI
 		{
 			var argsConf = new TextFileConfiguration(args);
 			var debug = argsConf.GetOrDefault<bool>("debug", false);
-			Logs.Configure(new FuncLoggerFactory(i => new CustomerConsoleLogger(i, (a, filter) =>
-			{
-				return (debug && filter == LogLevel.Debug) || filter > LogLevel.Debug;
-			}, false)));
+
+			ConsoleLoggerProcessor loggerProcessor = new ConsoleLoggerProcessor();
+			Logs.Configure(new FuncLoggerFactory(i => new CustomerConsoleLogger(i, Logs.SupportDebug(debug), false, loggerProcessor)));
 
 			using(var interactive = new Interactive())
 			{
@@ -56,6 +55,10 @@ namespace NTumbleBit.ClassicTumbler.Server.CLI
 					var job = new BroadcasterJob(interactive.Runtime.Services);
 					job.Start();
 					interactive.Services.Add(job);
+
+					var tor = new TorRegisterJob(config, runtime);
+					tor.Start();
+					interactive.Services.Add(tor);
 
 					if(!config.OnlyMonitor)
 					{

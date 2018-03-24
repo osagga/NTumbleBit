@@ -26,8 +26,8 @@ namespace NTumbleBit.Services
     public interface IBlockExplorerService
     {
 		int GetCurrentHeight();
-		ICollection<TransactionInformation> GetTransactions(Script scriptPubKey, bool withProof);
-		TransactionInformation GetTransaction(uint256 txId);
+		Task<ICollection<TransactionInformation>> GetTransactionsAsync(Script scriptPubKey, bool withProof);
+		TransactionInformation GetTransaction(uint256 txId, bool withProof);
 		uint256 WaitBlock(uint256 currentBlock, CancellationToken cancellation);
 		Task TrackAsync(Script scriptPubkey);
 		int GetBlockConfirmations(uint256 blockId);

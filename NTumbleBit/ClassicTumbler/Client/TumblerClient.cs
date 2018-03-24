@@ -62,13 +62,23 @@ namespace NTumbleBit.ClassicTumbler.Client
 		}
 
 
-		public Task<PuzzleSolution> SignVoucherAsync(SignVoucherRequest signVoucherRequest)
+		public Task BeginSignVoucherAsync(SignVoucherRequest signVoucherRequest)
 		{
+			//Will always return null
 			return SendAsync<PuzzleSolution>(HttpMethod.Post, signVoucherRequest, $"clientchannels/confirm");
 		}
-		public PuzzleSolution SignVoucher(SignVoucherRequest signVoucherRequest)
+		public void BeginSignVoucher(SignVoucherRequest signVoucherRequest)
 		{
-			return SignVoucherAsync(signVoucherRequest).GetAwaiter().GetResult();
+			BeginSignVoucherAsync(signVoucherRequest).GetAwaiter().GetResult();
+		}
+
+		public Task<PuzzleSolution> EndSignVoucherAsync(uint160 channelId)
+		{
+			return SendAsync<PuzzleSolution>(HttpMethod.Get, null, $"clientchannels/confirm/{cycleId}/{channelId}");
+		}
+		public PuzzleSolution EndSignVoucher(uint160 channelId)
+		{
+			return EndSignVoucherAsync(channelId).GetAwaiter().GetResult();
 		}
 
 		public async Task<uint160> BeginOpenChannelAsync(OpenChannelRequest request)
@@ -76,20 +86,20 @@ namespace NTumbleBit.ClassicTumbler.Client
 			if(request == null)
 				throw new ArgumentNullException(nameof(request));
 			var c = await SendAsync<uint160.MutableUint160>(HttpMethod.Post, request, $"channels/beginopen").ConfigureAwait(false);
-			return c.Value;
+			return c?.Value;
 		}
 
-		public ScriptCoin EndOpenChannel(int cycleId, uint160 channelId)
+		public TumblerEscrowData EndOpenChannel(int cycleId, uint160 channelId)
 		{
 			return EndOpenChannelAsync(cycleId, channelId).GetAwaiter().GetResult();
 		}
 
-		public async Task<ScriptCoin> EndOpenChannelAsync(int cycleId, uint160 channelId)
+		public async Task<TumblerEscrowData> EndOpenChannelAsync(int cycleId, uint160 channelId)
 		{
 			if(channelId == null)
 				throw new ArgumentNullException(nameof(channelId));
-			var c = await SendAsync<ScriptCoinModel>(HttpMethod.Post, null, $"channels/{cycleId}/{channelId}/endopen").ConfigureAwait(false);
-			return c?.ScriptCoin;
+			var c = await SendAsync<TumblerEscrowData>(HttpMethod.Post, null, $"channels/{cycleId}/{channelId}/endopen").ConfigureAwait(false);
+			return c;
 		}
 
 		public uint160 BeginOpenChannel(OpenChannelRequest request)
@@ -132,10 +142,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 			{
 				message.Content = new ByteArrayContent(body.ToBytes());
 			}
-			
+
 			var result = await Client.SendAsync(message).ConfigureAwait(false);
-			if(result.StatusCode == HttpStatusCode.NotFound)
-				return default(T);
 			if(!result.IsSuccessStatusCode)
 			{
 				string error = await result.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -144,6 +152,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 					throw new HttpRequestException(result.StatusCode + ": " + error);
 				}
 			}
+			if(result.StatusCode == HttpStatusCode.NotFound)
+				return default(T);
 			if(result.Content?.Headers?.ContentLength > MaxContentLength)
 				throw new IOException("Content is too big");
 
@@ -197,12 +207,14 @@ namespace NTumbleBit.ClassicTumbler.Client
 
 		public Task<OfferInformation> CheckBlindFactorsAsync(uint160 channelId, BlindFactor[] blindFactors)
 		{
+			if(channelId == null)
+				throw new ArgumentNullException(nameof(channelId));
 			return SendAsync<OfferInformation>(HttpMethod.Post, new ArrayWrapper<BlindFactor>(blindFactors), $"clientschannels/{cycleId}/{channelId}/checkblindfactors");
 		}
 
-		public PuzzleSolver.ServerCommitment[] SolvePuzzles(uint160 channelId, PuzzleValue[] puzzles)
+		public void BeginSolvePuzzles(uint160 channelId, PuzzleValue[] puzzles)
 		{
-			return SolvePuzzlesAsync(channelId, puzzles).GetAwaiter().GetResult();
+			BeginSolvePuzzlesAsync(channelId, puzzles).GetAwaiter().GetResult();
 		}
 
 		public void SetHttpHandler(HttpMessageHandler handler)
@@ -210,13 +222,22 @@ namespace NTumbleBit.ClassicTumbler.Client
 			Client = new HttpClient(handler);
 		}
 
-		public async Task<PuzzleSolver.ServerCommitment[]> SolvePuzzlesAsync(uint160 channelId, PuzzleValue[] puzzles)
+		public Task BeginSolvePuzzlesAsync(uint160 channelId, PuzzleValue[] puzzles)
 		{
-			var result = await SendAsync<ArrayWrapper<PuzzleSolver.ServerCommitment>>(HttpMethod.Post, new ArrayWrapper<PuzzleValue>(puzzles), $"clientchannels/{cycleId}/{channelId}/solvepuzzles").ConfigureAwait(false);
-			return result.Elements;
+			//The Task returns always null 
+			return SendAsync<PuzzlePromise.ServerCommitment>(HttpMethod.Post, new ArrayWrapper<PuzzleValue>(puzzles), $"clientchannels/{cycleId}/{channelId}/solvepuzzles");
 		}
 
+		public PuzzleSolver.ServerCommitment[] EndSolvePuzzles(uint160 channelId)
+		{
+			return EndSolvePuzzlesAsync(channelId).GetAwaiter().GetResult();
+		}
 
+		public async Task<PuzzleSolver.ServerCommitment[]> EndSolvePuzzlesAsync(uint160 channelId)
+		{
+			var result = await SendAsync<ArrayWrapper<PuzzleSolver.ServerCommitment>>(HttpMethod.Get, null, $"clientchannels/{cycleId}/{channelId}/solvepuzzles").ConfigureAwait(false);
+			return result?.Elements;
+		}
 
 		public PuzzlePromise.ServerCommitment[][] SignHashes(uint160 channelId, SignaturesRequest sigReq)
 		{

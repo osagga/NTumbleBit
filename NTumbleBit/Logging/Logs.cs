@@ -21,12 +21,17 @@ namespace NTumbleBit.Logging
 			Broadcasters = factory.CreateLogger("Broadcasters");
 			Tracker = factory.CreateLogger("Tracker");
 			Wallet = factory.CreateLogger("Wallet");
+			TOR = factory.CreateLogger("TOR");
 		}
 		public static ILogger Tumbler
 		{
 			get; set;
 		}
 		public static ILogger Client
+		{
+			get; set;
+		}
+		public static ILogger TOR
 		{
 			get; set;
 		}
@@ -42,6 +47,15 @@ namespace NTumbleBit.Logging
 		{
 			get; set;
 		}
+
+		public static Func<string, LogLevel, bool> SupportDebug(bool debug)
+		{
+			return (a, filter) =>
+			{
+				return (debug && filter == LogLevel.Debug) || filter > LogLevel.Debug;
+			};
+		}
+
 		public static ILogger Configuration
 		{
 			get; set;
