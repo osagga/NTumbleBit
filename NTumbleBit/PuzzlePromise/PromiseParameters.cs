@@ -21,7 +21,6 @@ namespace NTumbleBit.PuzzlePromise
 
         public int PaymentsCount // Q
         {
-            // Might need to move this to another place.
             get;
             set;
         }

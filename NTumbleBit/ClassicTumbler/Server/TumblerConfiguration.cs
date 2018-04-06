@@ -17,6 +17,13 @@ namespace NTumbleBit.ClassicTumbler.Server
 
 	public class TumblerConfiguration
 	{
+		/*
+			We might need to add a new method here for the PaymentHubMode Parameters:
+				- 	Bob must input the value Q to indicate the amount he's paid, and that should be passed to 
+					the parameters.
+		 */
+		// 
+		// 
 		public TumblerConfiguration()
 		{
 			ClassicTumblerParameters = new ClassicTumblerParameters();

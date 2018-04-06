@@ -162,6 +162,18 @@ namespace NTumbleBit.ClassicTumbler
 			}
 		}
 
+		int _PaymentsCount;
+		public int PaymentsCount
+		{
+			get
+			{
+				return _PaymentsCount;
+			}
+			set
+			{
+				_PaymentsCount = value;
+			}
+		}
 
 		int _FakeTransactionCount;
 		public int FakeTransactionCount
@@ -226,7 +238,8 @@ namespace NTumbleBit.ClassicTumbler
         public bool Check(PromiseParameters promiseParams)
 		{
 			return promiseParams.FakeTransactionCountPerLevel == FakeTransactionCount &&
-				promiseParams.RealTransactionCountPerLevel == RealTransactionCount;
+				promiseParams.RealTransactionCountPerLevel == RealTransactionCount &&
+				promiseParams.PaymentsCount == PaymentsCount;
 		}
 
 		public bool Check(SolverParameters solverParams)
@@ -239,6 +252,7 @@ namespace NTumbleBit.ClassicTumbler
 		{
 			return new SolverParameters
 			{
+				// Might need to set the number of payments for Alice here.
 				FakePuzzleCount = FakePuzzleCount,
 				RealPuzzleCount = RealPuzzleCount,
 				ServerKey = ServerKey.PublicKey
@@ -247,12 +261,13 @@ namespace NTumbleBit.ClassicTumbler
 
 		public PromiseParameters CreatePromiseParamaters()
 		{
+			// Added the initialization of the "PaymentsCount" parameter here
 			return new PromiseParameters
 			{
-                // Might need to add the PaymentsCount here
                 FakeFormat = FakeFormat,
 				FakeTransactionCountPerLevel = FakeTransactionCount,
 				RealTransactionCountPerLevel = RealTransactionCount,
+				PaymentsCount = PaymentsCount,
 				ServerKey = ServerKey.PublicKey
 			};
 		}
