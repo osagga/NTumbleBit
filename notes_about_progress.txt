@@ -14,3 +14,9 @@ Some Problems:
 	- Bob blinds the Voucher (at ClientChannelNegotiation.ReceiveUnsignedVoucher(voucherResponse);), but Alice is the one that unblinds it (at ClientChannelNegotiation.CheckVoucherSolution(voucher);), Alice shouldn't be able to do that (have acess to the blinding factor)
 		- It's better if Alice blinded the voucher before sending it to the Tumbler, and unblinds it herself and send it to Bob
 	- Who should pay the transaction fees on the transaction that gives Bob 'i' and the Tumbler 'Q-i'? For now I'm assuming that Bob should pay it.
+
+
+Questions:
+	- Should the Tumbler fee be higher?
+	- Should the payment phase be longer, if so, how much longer?
+		- First you need to confirm that all of the Alice's stuff is going to be done in the PaymentPhase
