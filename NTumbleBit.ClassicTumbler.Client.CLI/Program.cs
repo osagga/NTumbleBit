@@ -54,6 +54,7 @@ namespace NTumbleBit.ClassicTumbler.Client.CLI
 
 					if(!config.OnlyMonitor)
 					{
+						// TODO: Here's the starting point of the execution
 						var stateMachine = runtime.CreateStateMachineJob();
 						stateMachine.Start();
 						interactive.Services.Add(stateMachine);

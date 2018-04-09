@@ -346,12 +346,11 @@ namespace NTumbleBit.PuzzleSolver
 			tx.LockTime = EscrowScriptPubKeyParameters.GetFromCoin(InternalState.EscrowedCoin).LockTime;
 			tx.Inputs.Add(new TxIn());
 			tx.Inputs[0].Sequence = 0;
-			
+			tx.Outputs.Add(new TxOut(InternalState.OfferCoin.Amount, InternalState.RedeemDestination));
 			tx.Inputs[0].ScriptSig = new Script(
 				Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
 				Op.GetPushOp(InternalState.OfferCoin.Redeem.ToBytes()));
 			tx.Inputs[0].Witnessify();
-			tx.Outputs.Add(new TxOut(InternalState.OfferCoin.Amount, InternalState.RedeemDestination));
 			tx.Outputs[0].Value -= feeRate.GetFee(tx.GetVirtualSize());
 
 			var redeemTransaction = new TrustedBroadcastRequest

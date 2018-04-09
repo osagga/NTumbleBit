@@ -396,7 +396,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 							
 
 							// TODO:
-							// Here we need to also pass the Tumbler's "change_adress" that we got in "tumblerEscrow" so that it
+							// Here we need to also pass the Tumbler's "change_address" that we got in "tumblerEscrow" so that it
 							// can saved in the InternalState.
 							PromiseClientSession = ClientChannelNegotiation.ReceiveTumblerEscrowedCoin(escrowCoin);
 							Logs.Client.LogInformation("Tumbler expected escrowed coin received");
@@ -470,15 +470,19 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var blindFactors = SolverClientSession.GetBlindFactors(solutionKeys);
 							var offerInformation = alice.CheckBlindFactors(SolverClientSession.Id, blindFactors);
 
+							// NOTE: It seems like this creates and signs T_puzzle
 							var offerSignature = SolverClientSession.SignOffer(offerInformation);
-
+							
+							// NOTE: It seems like this function creates the redeem transaction for T_puzzle
 							var offerRedeem = SolverClientSession.CreateOfferRedeemTransaction(feeRate);
+							
 							Logs.Client.LogDebug("Puzzle solver protocol ended...");
 
 							//May need to find solution in the fulfillment transaction
 							Services.BlockExplorerService.TrackAsync(offerRedeem.PreviousScriptPubKey).GetAwaiter().GetResult();
 							Tracker.AddressCreated(cycle.Start, TransactionType.ClientOfferRedeem, SolverClientSession.GetInternalState().RedeemDestination, correlation);
 							Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientOfferRedeem, correlation, offerRedeem);
+							
 							try
 							{
 								solutionKeys = alice.FulfillOffer(SolverClientSession.Id, offerSignature);
@@ -613,7 +617,12 @@ namespace NTumbleBit.ClassicTumbler.Client
 
 			if(tumblerTx.Confirmations >= cycle.SafetyPeriodDuration)
 			{
-				// TODO: Understand what does this function do.
+				/*
+					TODO (problem?): It seems that this function counts how many Bobs there are, but 
+						it depends on the amount of the transaction to figure out how many transactions there are.
+						The problem is that in this Mode, it's possible that each Bob escrows a diffrent amount of payments.
+						So we can't use the transaction amount as a filter, maybe use something else? (PubKey?)
+				 */
 				var bobCount = Parameters.CountEscrows(tumblerTx.Transaction, Identity.Bob);
 				Logs.Client.LogInformation($"Tumbler escrow reached {cycle.SafetyPeriodDuration} confirmations");
 				Logs.Client.LogInformation($"Tumbler escrow transaction has {bobCount} users");

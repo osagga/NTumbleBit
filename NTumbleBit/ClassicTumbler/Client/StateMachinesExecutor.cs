@@ -82,13 +82,14 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var machine = new PaymentStateMachine(Runtime, state);
 							if(machine.Status == PaymentStateMachineStatus.Wasted)
 							{
-								Logs.Client.LogDebug($"Skipping cycle {machine.StartCycle}, because if is wasted");
+								Logs.Client.LogDebug($"Skipping cycle {machine.StartCycle}, because it is wasted");
 								continue;
 							}
 
 							var statusBefore = machine.GetInternalState();
 							try
 							{
+								// TODO: This executes a phase through the Update function
 								machine.Update();
 								InvalidPhaseCount = 0;
 							}

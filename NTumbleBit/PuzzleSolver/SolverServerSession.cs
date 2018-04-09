@@ -283,7 +283,7 @@ namespace NTumbleBit.PuzzleSolver
 			}
 
 			InternalState.FulfillKey = new Key();
-			
+
 			Transaction dummy = new Transaction();
 			dummy.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));				
 			dummy.Inputs[0].ScriptSig = new Script(
@@ -299,6 +299,7 @@ namespace NTumbleBit.PuzzleSolver
 
 			var escrow = InternalState.EscrowedCoin;
 			var escrowInformation = EscrowScriptPubKeyParameters.GetFromCoin(InternalState.EscrowedCoin);
+
 			var redeem = new OfferScriptPubKeyParameters
 			{
 				Hashes = InternalState.SolvedPuzzles.Select(p => p.SolutionKey.GetHash()).ToArray(),
