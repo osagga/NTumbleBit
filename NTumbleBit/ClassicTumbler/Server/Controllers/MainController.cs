@@ -189,22 +189,40 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 
 			var expectedEscrow = new EscrowScriptPubKeyParameters(request.ClientEscrowKey, key.PubKey, cycle.GetClientLockTime());
 
+			/*
+				TODO:
+				Here, the Tumbler doesn't know the expected amount that Alice should put in the TxOut (it's up to her), but the tumbler
+				knows for sure that the amount should be at least 'Parameters.Fee', plus maybe some multiple of the 'Parameters.Denomination'?
+				So I can do any of the following here:
+					- I can change the expectedTxOut to be only the Fee amount, and then later check If 'TxOut.Value' is >= 'expectedTxOut.Value'
+						- I can also add a new check to see if the (amount - Fee) is a multiple of the Denomination?
+			
+			 */
+			// TODO: Instead of passing 'Denomination' + 'Fee', we only pass 'Fee'
 			var expectedTxOut = new TxOut(Parameters.Denomination + Parameters.Fee, expectedEscrow.ToScript().WitHash.ScriptPubKey.Hash);
 			var escrowedCoin =
 				transaction
 				.Outputs
 				.AsCoins()
+				// TODO: This would change to '>=' instead of '=='
 				.Where(c => c.TxOut.Value == expectedTxOut.Value
 							&& c.TxOut.ScriptPubKey == expectedTxOut.ScriptPubKey)
 				.Select(c => c.ToScriptCoin(expectedEscrow.ToScript()))
 				.FirstOrDefault();
-
+			// TODO: Here we need to extract AlicePaymentsCount as "transaction.Outputs.AsCoins().FirstOrDefault().TxOut.Value" (Debug this to check)
+			// TODO: Add a new function 'CheckTxValue(int TxValue)' that checks if the (TxValue/Denomination) is an integer and > 0
+			// (we would pass "AlicePaymentsCount" here)
 			if(escrowedCoin == null)
 			{
 				Logs.Tumbler.LogDebug("Could not find escrowed coin");
 				throw new ActionResultException(BadRequest("invalid-transaction"));
 			}
-
+			/*
+			TODO:
+				- Before this call, it's expected that "Parameters.AlicePaymentsCount" is set to the amount 'Q' that 
+					Alice has specified in the 'request.AlicePaymentsCount'
+				- "Parameters.AlicePaymentsCount = AlicePaymentsCount"
+			 */
 			var solverServerSession = new SolverServerSession(Runtime.TumblerKey, Parameters.CreateSolverParamaters());
 			solverServerSession.SetChannelId(request.ChannelId);
 			solverServerSession.ConfigureEscrowedCoin(escrowedCoin, key);
@@ -281,10 +299,10 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 
 			try
 			{
-				if(!Parameters.VoucherKey.PublicKey.Verify(request.Signature, NBitcoin.Utils.ToBytes((uint)request.CycleStart, true), request.Nonce))
-					throw new ActionResultException(BadRequest("incorrect-voucher"));
 				if(!Repository.MarkUsedNonce(request.CycleStart, request.Nonce))
 					throw new ActionResultException(BadRequest("duplicate-query"));
+				if(!Parameters.VoucherKey.PublicKey.Verify(request.Signature, NBitcoin.Utils.ToBytes((uint)request.CycleStart, true), request.Nonce))
+					throw new ActionResultException(BadRequest("incorrect-voucher"));
 
 				var escrowKey = new Key();
 
@@ -296,8 +314,21 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
                 };
                 var channelId = new uint160(RandomUtils.GetBytes(20));
 				Logs.Tumbler.LogInformation($"Cycle {cycle.Start} Asked to open channel");
-				var txOut = new TxOut(Parameters.Denomination, escrow.ToScript().WitHash.ScriptPubKey.Hash);
 
+				/*
+					TODO:
+					This is the Escrow Transaction for Bob, I should change the value here to be 'Q'
+					instead of Parameters.Denomination. The value Q can be passed along with the request
+					to open the channel for Bob.
+
+					NOTE (Problem maybe?):
+						Should there be an upper limit to how much (Q) Bob can ask for? He can get all the Tumbler's Money
+						if he wants.
+				 */
+				 // TODO: This first parameter should change to 'Q' that Bob specifies.
+				var txOut = new TxOut(Parameters.Denomination, escrow.ToScript().WitHash.ScriptPubKey.Hash);
+				
+				// NOTE: This checks if the Tumbler has enough funds to give 'Q' of the denomination to Bob
 				var unused = Services.WalletService.FundTransactionAsync(txOut, fee)
 					.ContinueWith(async (Task<Transaction> task) =>
 					{
@@ -318,8 +349,19 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 							await Services.BlockExplorerService.TrackAsync(txOut.ScriptPubKey).ConfigureAwait(false);
 							Tracker.AddressCreated(cycle.Start, TransactionType.TumblerEscrow, txOut.ScriptPubKey, correlation);
 							var coin = tx.Outputs.AsCoins().First(o => o.ScriptPubKey == txOut.ScriptPubKey && o.TxOut.Value == txOut.Value);
+							/*
+								TODO:
+									- We need to set 'BobPaymentsCount' here before we create the instance of the PromiseServerSession.
+										- One way to do this is by setting:
+											"Parameters.BobPaymentsCount = Q"
+												- 'Q' here references to the number of BTCs that Bob asked for above, and it should be the 
+													same as the number of BTCs the Tumbler escrowed.
+							 */
 							var session = new PromiseServerSession(Parameters.CreatePromiseParamaters());
+							// TODO: This is the way the Tumbler uses to generate new address, we need to use something similar to generate
+							// the address the Tumbler sends to Bob to receive the change of the escrow transaction.
 							var redeem = await Services.WalletService.GenerateAddressAsync().ConfigureAwait(false);
+
 							session.ConfigureEscrowedCoin(channelId, coin.ToScriptCoin(escrow.ToScript()), escrowKey, redeem.ScriptPubKey);
 							var redeemTx = session.CreateRedeemTransaction(fee);
 							Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.TumblerRedeem, correlation, redeemTx);
@@ -361,6 +403,11 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			if(session == null || tx == null)
 				return null;
 			AssertNotDuplicateQuery(cycle.Start, channelId);
+
+			// TODO: We need to add a new field here that contains the change address of the Tumbler's wallet,
+			// so that Bob can use that when building transactions.
+			// We would also need to save this address in some internal state or in the 'session' so that the Tumbler
+			// Can access it later when rebuilding Bob's transactions in the verification step.
 			return new TumblerEscrowData()
 			{
 				Transaction = tx.Transaction,
@@ -400,9 +447,8 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			var session = GetPromiseServerSession(cycleId, channelId, CyclePhase.TumblerChannelEstablishment);
 			AssertNotDuplicateQuery(cycleId, channelId);
 
-            // TODO: Need to figure out how to get Bob's key from here
-            var feeRate = new NBitcoin.FeeRate(Money.Satoshis(1));
-            var proof = session.CheckRevelation(revelation, new PubKey("0xFIX_ME").Hash, feeRate);
+            // TODO: Bob's key should be part of the revelation, also in the InternalState, we should have the change address for the Tumbler.
+            var proof = session.CheckRevelation(revelation);
 
 			Repository.Save(cycleId, session);
 			return proof;

@@ -193,7 +193,7 @@ namespace NTumbleBit.Tests
 			RoundTrip(ref client, parameters);
 			RoundTrip(ref revelation);
 
-			ServerCommitmentsProof proof = server.CheckRevelation(revelation, clientEscrow.PubKey.Hash, FeeRate);
+			ServerCommitmentsProof proof = server.CheckRevelation(revelation, clientEscrow.PubKey.Hash);
 			RoundTrip(ref server, parameters);
 			RoundTrip(ref proof);
 

@@ -133,8 +133,6 @@ namespace NTumbleBit.ClassicTumbler
 			}
 		}
 
-        // TODO: Might need to add PaymentsCount as a field here.
-
         int _FakePuzzleCount;
 		public int FakePuzzleCount
 		{
@@ -227,6 +225,7 @@ namespace NTumbleBit.ClassicTumbler
 			stream.ReadWrite(ref _VoucherKey);
 			stream.ReadWriteC(ref _Denomination);
 			stream.ReadWriteC(ref _Fee);
+			stream.ReadWrite(ref _PaymentsCount);
 			stream.ReadWrite(ref _FakePuzzleCount);
 			stream.ReadWrite(ref _RealPuzzleCount);
 			stream.ReadWrite(ref _FakeTransactionCount);
@@ -234,12 +233,13 @@ namespace NTumbleBit.ClassicTumbler
 			stream.ReadWriteC(ref _ExpectedAddress);
 		}
 
-        // Might need to add more checks here
         public bool Check(PromiseParameters promiseParams)
 		{
+			// return promiseParams.FakeTransactionCountPerLevel == FakeTransactionCount &&
+			// 	promiseParams.RealTransactionCountPerLevel == RealTransactionCount &&
+			// 	promiseParams.PaymentsCount == PaymentsCount;
 			return promiseParams.FakeTransactionCountPerLevel == FakeTransactionCount &&
-				promiseParams.RealTransactionCountPerLevel == RealTransactionCount &&
-				promiseParams.PaymentsCount == PaymentsCount;
+				promiseParams.RealTransactionCountPerLevel == RealTransactionCount;
 		}
 
 		public bool Check(SolverParameters solverParams)
@@ -250,9 +250,18 @@ namespace NTumbleBit.ClassicTumbler
 
 		public SolverParameters CreateSolverParamaters()
 		{
+			/*
+		TODO:
+			- We need to add a definition to "AlicePaymentsCount" in the current class.
+			- When this is called, it's assumed that the Value of "AlicePaymentsCount" is set.
+			- We also need to define the corresponding fields in the class "SolverParameters"
+				- "PaymentsCount" or "AlicePaymentsCount": This should reflect the total amount of Q BTCs alice has escrowed.
+				- "TotalSolvedPuzzles": This should reflect the current total number of puzzles Alice got the solutions to.
+					- This value is bounded by "PaymentsCount" as the maximun number.
+			 */
 			return new SolverParameters
 			{
-				// Might need to set the number of payments for Alice here.
+				// TODO: Need to add AlicePaymentAmount here
 				FakePuzzleCount = FakePuzzleCount,
 				RealPuzzleCount = RealPuzzleCount,
 				ServerKey = ServerKey.PublicKey
@@ -261,7 +270,13 @@ namespace NTumbleBit.ClassicTumbler
 
 		public PromiseParameters CreatePromiseParamaters()
 		{
-			// Added the initialization of the "PaymentsCount" parameter here
+			/*
+		TODO:
+			- We need to add a definition to "BobPaymentsCount" in the current class.
+			- When this is called, it's assumed that the Value of "BobPaymentsCount" is set.
+			- We also need to define the corresponding field in the class "PromiseParameters"
+				- We can either call is "PaymentsCount" or "BobPaymentsCount".
+			 */
 			return new PromiseParameters
 			{
                 FakeFormat = FakeFormat,
@@ -348,6 +363,7 @@ namespace NTumbleBit.ClassicTumbler
 
 		public int CountEscrows(Transaction tx, Identity identity)
 		{
+			// TODO: Understand what does this function do.
 			var amount = identity == Identity.Bob ? Denomination : Denomination + Fee;
 			return tx.Outputs.Where(o => o.Value == amount).Count();
 		}

@@ -75,15 +75,13 @@ namespace NTumbleBit.PuzzlePromise
         public uint256 CreateRealHash(Transaction tx, ScriptCoin _Escrow, Money feeVariation)
         {
             /*
-                 * Not sure if this is best way to do this, but had to add this for step 7
-                 * when verifying valid Hashes, the server will have to make real hashes, but
-                 * it doesn't have access to RealHash class. So I created this function that
-                 * takes care of that
+                 TODO: Make sure that this function is consestant with the way we hash the real transactions on the client side.
             */
             var escrow = EscrowScriptPubKeyParameters.GetFromCoin(_Escrow);
             var coin = _Escrow.Clone();
             coin.OverrideScriptCode(escrow.GetInitiatorScriptCode());
             var Transaction = tx.Clone();
+            // TODO: Make sure you only decrement from Bob's output (the 'i'), but not from the Tumbler's ('Q' - 'i') output
             Transaction.Outputs[0].Value -= feeVariation;
             return Transaction.GetSignatureHash(coin, SigHash.All);
         }

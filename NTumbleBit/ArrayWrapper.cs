@@ -67,6 +67,7 @@ namespace NTumbleBit
     public class TwoDArrayWrapper<T> : IBitcoinSerializable where T : IBitcoinSerializable, new()
     {
         /*
+		  * TODO:
           * Not really sure if this is the best way to solve this problem.
           * used here: TumblerClient.cs #L179
         */

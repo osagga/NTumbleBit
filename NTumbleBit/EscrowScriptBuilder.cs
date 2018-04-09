@@ -19,6 +19,7 @@ namespace NTumbleBit
 	public class EscrowScriptPubKeyParameters
 	{
 
+		// TODO: Might need to modify this for the Bitcoin transactions
 		public EscrowScriptPubKeyParameters()
 		{
 

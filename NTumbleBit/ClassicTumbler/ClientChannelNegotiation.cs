@@ -160,7 +160,9 @@ namespace NTumbleBit.ClassicTumbler
 
 		public TxOut BuildClientEscrowTxOut()
 		{
+			// TODO: This function builds T_escr from Alice to the Tumbler
 			AssertState(TumblerClientSessionStates.WaitingClientTransaction);
+			// TODO: Change the first parameter HERE, I think we should make it as 'some multiple * Parameters.Denomination'!
 			return new TxOut(Parameters.Denomination + Parameters.Fee, InternalState.ClientEscrow.WitHash.ScriptPubKey.Hash);
 		}
 		
@@ -194,6 +196,14 @@ namespace NTumbleBit.ClassicTumbler
 			var escrow = new Key();
 			InternalState.TumblerEscrowKey = escrow;
 			InternalState.Status = TumblerClientSessionStates.WaitingTumblerEscrow;
+			/*
+			TODO:
+				- Here we need to send to the Tumbler how much 'Q' we are requesting as part of the request.
+					-  We can call the field "RequestedPaymentsCount" (in the 'OpenChannelRequest' class), and we can get this value by:
+						- Either passed to this function as a parameter.
+			Cleaner ->	- Or it could be saved in the InternalState by default and just referenced here when creating the Request.
+			*/
+					
 			var result = new OpenChannelRequest
 			{
 				EscrowKey = escrow.PubKey,
@@ -208,6 +218,8 @@ namespace NTumbleBit.ClassicTumbler
 
 		public PromiseClientSession ReceiveTumblerEscrowedCoin(ScriptCoin escrowedCoin)
 		{
+			// TODO: This function should also expect another input that is "change_adress" of the Tumbler
+			// the second input should be saved in the "InternalState" along with the Escrow.
 			AssertState(TumblerClientSessionStates.WaitingTumblerEscrow);
 			var escrow = EscrowScriptPubKeyParameters.GetFromCoin(escrowedCoin);
 			if(escrow == null)
@@ -217,6 +229,8 @@ namespace NTumbleBit.ClassicTumbler
 			var expectedEscrow = GetTumblerEscrowParameters(escrow.Initiator);
 			if(escrow != expectedEscrow)
 				throw new PuzzleException("invalid-escrow");
+
+			// TODO: Here we need to change "Parameters.Denomination" to "Parameters.Denomination * Parameters.BobPaymentsCount"
 			if(escrowedCoin.Amount != Parameters.Denomination)
 				throw new PuzzleException("invalid-amount");
 

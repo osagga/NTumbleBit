@@ -7,6 +7,7 @@ using System.Linq;
 
 namespace NTumbleBit
 {
+	// TODO: Understand what does this mean :)
 	public class CorrelationId
 	{
 		public static CorrelationId Parse(string str)

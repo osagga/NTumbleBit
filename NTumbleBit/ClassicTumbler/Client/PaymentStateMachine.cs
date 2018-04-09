@@ -58,8 +58,10 @@ namespace NTumbleBit.ClassicTumbler.Client
 				ClientChannelNegotiation = new ClientChannelNegotiation(runtime.TumblerParameters, state.NegotiationClientState);
 			}
 			if(state.PromiseClientState != null)
+				// TODO: We need to pass PaymentsCount for Bob here!
 				PromiseClientSession = new PromiseClientSession(runtime.TumblerParameters.CreatePromiseParamaters(), state.PromiseClientState);
 			if(state.SolverClientState != null)
+				// TODO: We need to pass PaymentsCount for Alice here!
 				SolverClientSession = new SolverClientSession(runtime.TumblerParameters.CreateSolverParamaters(), state.SolverClientState);
 			Status = state.Status;
 		}
@@ -151,8 +153,10 @@ namespace NTumbleBit.ClassicTumbler.Client
 		{
 			State s = new State();
 			if(SolverClientSession != null)
+				// TODO: might need to modify this GetInternalState to take into consideration the PaymentCount
 				s.SolverClientState = SolverClientSession.GetInternalState();
 			if(PromiseClientSession != null)
+			// TODO: might need to modify this GetInternalState to take into consideration the PaymentCount
 				s.PromiseClientState = PromiseClientSession.GetInternalState();
 			if(ClientChannelNegotiation != null)
 				s.NegotiationClientState = ClientChannelNegotiation.GetInternalState();
@@ -208,6 +212,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 			var previousState = Status;
 
 			TumblerClient bob = null, alice = null;
+			// NOTE: We can either be Bob or Alice here, so this works for both.
 			try
 			{
 
@@ -229,6 +234,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 							//Saving the voucher for later
 							StartCycle = cycle.Start;
 							ClientChannelNegotiation = new ClientChannelNegotiation(Parameters, cycle.Start);
+							// Note: This saves the Voucher so that Alice can access it.
 							ClientChannelNegotiation.ReceiveUnsignedVoucher(voucherResponse);
 							Status = PaymentStateMachineStatus.Registered;
 						}
@@ -239,10 +245,24 @@ namespace NTumbleBit.ClassicTumbler.Client
 							alice = Runtime.CreateTumblerClient(cycle.Start, Identity.Alice);
 							var key = alice.RequestTumblerEscrowKey();
 							ClientChannelNegotiation.ReceiveTumblerEscrowKey(key.PubKey, key.KeyIndex);
+
+							
+							/*
+								TODO: The amount of money Alice escrows here depends on the 'Parameters' that were
+								passed to the ClientChannelNegotiation. So if we want Alice to escrow Q BTC, we can 
+								either:
+									- Set a new field in the Paramerters called 'AlicePaymentCount', and then use that
+										When creating the transaction here.
+										- If this is the approach, maybe set AlicePaymentCount from the config file?
+											Along with 'BobPaymentCount'.
+									- We pass the number Q of BTC as an input to the function here
+									- ...
+							 */
 							//Client create the escrow
 							var escrowTxOut = ClientChannelNegotiation.BuildClientEscrowTxOut();
 							feeRate = GetFeeRate();
 
+							// NOTE: This part just checks if Alice has enough funding to support the transaction 'escrowTxOut'
 							Transaction clientEscrowTx = null;
 							try
 							{
@@ -254,8 +274,12 @@ namespace NTumbleBit.ClassicTumbler.Client
 								break;
 							}
 							NeedSave = true;
+							// 
 							var redeemDestination = Services.WalletService.GenerateAddressAsync().GetAwaiter().GetResult().ScriptPubKey;
 							var channelId = new uint160(RandomUtils.GetBytes(20));
+							
+							// TODO: What does this function do?
+							// NOTE: It seems like this function checks the Escrow, stores the Escrow Tx along with the address to receive the refund at.
 							SolverClientSession = ClientChannelNegotiation.SetClientSignedTransaction(channelId, clientEscrowTx, redeemDestination);
 
 
@@ -265,7 +289,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 							Tracker.TransactionCreated(cycle.Start, TransactionType.ClientEscrow, clientEscrowTx.GetHash(), correlation);
 							Services.BlockExplorerService.TrackAsync(escrowTxOut.ScriptPubKey).GetAwaiter().GetResult();
 
-
+							// NOTE: This the same as T_refund from the the escrow, this doesn't need to be modified since Alice will take 
+							// All the Q BTCs here, and not give any change to the Tumbler.
 							var redeemTx = SolverClientSession.CreateRedeemTransaction(feeRate);
 							Tracker.AddressCreated(cycle.Start, TransactionType.ClientRedeem, redeemDestination, correlation);
 
@@ -279,7 +304,10 @@ namespace NTumbleBit.ClassicTumbler.Client
 						else if(Status == PaymentStateMachineStatus.ClientChannelBroadcasted)
 						{
 							alice = Runtime.CreateTumblerClient(cycle.Start, Identity.Alice);
+							// NOTE: This function tracks the given Tx from the Blockchain, might need something like that
+							// On the Tumbler side to get the amount of BTCs Alice has escrowed.
 							TransactionInformation clientTx = GetTransactionInformation(SolverClientSession.EscrowedCoin, true);
+							
 							var state = ClientChannelNegotiation.GetInternalState();
 							if(clientTx != null && clientTx.Confirmations >= cycle.SafetyPeriodDuration)
 							{
@@ -287,6 +315,10 @@ namespace NTumbleBit.ClassicTumbler.Client
 								//Client asks the public key of the Tumbler and sends its own
 								alice.BeginSignVoucher(new SignVoucherRequest
 								{
+									/*
+										TODO: If needed, we might also need to send to the Tumbler the amount of BTCs
+											that we escrowed, but I think it's included with the Transaction parameter.
+									 */
 									MerkleProof = clientTx.MerkleProof,
 									Transaction = clientTx.Transaction,
 									KeyReference = state.TumblerEscrowKeyReference,
@@ -315,9 +347,11 @@ namespace NTumbleBit.ClassicTumbler.Client
 
 						if(Status == PaymentStateMachineStatus.TumblerVoucherObtained)
 						{
+							// NOTE: After this stage, the Tumbler would have ecrowed the requested BTCs
 							bob = Runtime.CreateTumblerClient(cycle.Start, Identity.Bob);
 							Logs.Client.LogInformation("Begin ask to open the channel...");
 							//Client asks the Tumbler to make a channel
+							// TODO: Before calling this function, it's expected that the InternalState have the value of the requested Payments for Bob
 							var bobEscrowInformation = ClientChannelNegotiation.GetOpenChannelRequest();
 							uint160 channelId = null;
 							try
@@ -359,9 +393,14 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var txOut = tumblerEscrow.Transaction.Outputs[tumblerEscrow.OutputIndex];
 							var outpoint = new OutPoint(tumblerEscrow.Transaction.GetHash(), tumblerEscrow.OutputIndex);
 							var escrowCoin = new Coin(outpoint, txOut).ToScriptCoin(ClientChannelNegotiation.GetTumblerEscrowParameters(tumblerEscrow.EscrowInitiatorKey).ToScript());
+							
 
+							// TODO:
+							// Here we need to also pass the Tumbler's "change_adress" that we got in "tumblerEscrow" so that it
+							// can saved in the InternalState.
 							PromiseClientSession = ClientChannelNegotiation.ReceiveTumblerEscrowedCoin(escrowCoin);
 							Logs.Client.LogInformation("Tumbler expected escrowed coin received");
+							
 							//Tell to the block explorer we need to track that address (for checking if it is confirmed in payment phase)
 							Services.BlockExplorerService.TrackAsync(PromiseClientSession.EscrowedCoin.ScriptPubKey).GetAwaiter().GetResult();
 							Services.BlockExplorerService.TrackPrunedTransactionAsync(tumblerEscrow.Transaction, tumblerEscrow.MerkleProof).GetAwaiter().GetResult();
@@ -370,16 +409,25 @@ namespace NTumbleBit.ClassicTumbler.Client
 							Tracker.TransactionCreated(cycle.Start, TransactionType.TumblerEscrow, PromiseClientSession.EscrowedCoin.Outpoint.Hash, correlation);
 
 							Services.BroadcastService.BroadcastAsync(tumblerEscrow.Transaction).GetAwaiter().GetResult();
+							
 							//Channel is done, now need to run the promise protocol to get valid puzzle
 							var cashoutDestination = DestinationWallet.GetNewDestination();
 							Tracker.AddressCreated(cycle.Start, TransactionType.TumblerCashout, cashoutDestination, correlation);
 
 							feeRate = GetFeeRate();
+
 							var sigReq = PromiseClientSession.CreateSignatureRequest(cashoutDestination, feeRate);
 							var commitments = bob.SignHashes(PromiseClientSession.Id, sigReq);
 							var revelation = PromiseClientSession.Reveal(commitments);
 							var proof = bob.CheckRevelation(PromiseClientSession.Id, revelation);
 							var puzzle = PromiseClientSession.CheckCommitmentProof(proof);
+							/*
+							TODO: Need to figure out a way to coordinate the puzzles from Bob to Alice.
+								- Should I just send all of them at once from Bob to Alice? Or One by one.
+									- It might be a bit tricky doing the one by one approach given that this function is 
+										run by threads and it's not continuos.
+							 */
+							 // NOTE: For now I'm just passing the first puzzle, but ultimately, we would need to pass all of them.
 							SolverClientSession.AcceptPuzzle(puzzle[0]);
 							Status = PaymentStateMachineStatus.TumblerChannelCreated;
 						}
@@ -515,6 +563,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 
 		public bool ShouldStayConnected()
 		{
+			// TODO: Modify this to reflect the new conditions in the solver protocol
 			if(ClientChannelNegotiation == null)
 				return false;
 
@@ -564,6 +613,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 
 			if(tumblerTx.Confirmations >= cycle.SafetyPeriodDuration)
 			{
+				// TODO: Understand what does this function do.
 				var bobCount = Parameters.CountEscrows(tumblerTx.Transaction, Identity.Bob);
 				Logs.Client.LogInformation($"Tumbler escrow reached {cycle.SafetyPeriodDuration} confirmations");
 				Logs.Client.LogInformation($"Tumbler escrow transaction has {bobCount} users");

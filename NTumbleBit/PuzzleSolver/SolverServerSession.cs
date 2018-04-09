@@ -228,6 +228,7 @@ namespace NTumbleBit.PuzzleSolver
 
 		public SolutionKey[] CheckRevelation(ClientRevelation revelation)
 		{
+			// NOTE: This should be step 6 in the Solver protocol.
 			if(revelation == null)
 				throw new ArgumentNullException($"{nameof(revelation)}");
 			if(revelation.FakeIndexes.Length != Parameters.FakePuzzleCount || revelation.Solutions.Length != Parameters.FakePuzzleCount)

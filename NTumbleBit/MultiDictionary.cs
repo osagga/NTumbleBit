@@ -7,6 +7,8 @@ using System.Collections.Generic;
 
 namespace NTumbleBit
 {
+	// TODO: Might use this for the Alice -> Payment count 
+	
 	/// <summary>
 	/// A MultiValueDictionary can be viewed as a <see cref="IDictionary" /> that allows multiple 
 	/// values for any given unique key. While the MultiValueDictionary API is 

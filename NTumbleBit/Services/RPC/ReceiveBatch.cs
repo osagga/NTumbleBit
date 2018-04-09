@@ -29,6 +29,7 @@ namespace NTumbleBit.Services.RPC
 		{
 			var isFirstOutput = false;
 			TaskCompletionSource<TResult> completion = null;
+			// TODO: Maybe use the lock later when manipulating the counter for Alice
 			lock(Data)
 			{
 				completion = _TransactionCreated;

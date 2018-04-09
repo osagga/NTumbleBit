@@ -1,0 +1,16 @@
+For the Transactions:
+
+Alice:
+	T_escr:
+		- Just needs a modification to the amount that is passed into it, I just need to figure out how would that be passed.
+			- See ClientChannelNegotiation.BuildClientEscrowTxOut()
+	T_refund (from T_escr):
+		- Doesn't need modification, it just assumes that you would need all the amount of BTCs that T_escr was initlized to.
+			- We don't need to worry about the change here, that's why this is is the same
+				- See SolverClientSession.CreateRedeemTransaction(feeRate)
+	
+	
+Some Problems:
+	- Bob blinds the Voucher (at ClientChannelNegotiation.ReceiveUnsignedVoucher(voucherResponse);), but Alice is the one that unblinds it (at ClientChannelNegotiation.CheckVoucherSolution(voucher);), Alice shouldn't be able to do that (have acess to the blinding factor)
+		- It's better if Alice blinded the voucher before sending it to the Tumbler, and unblinds it herself and send it to Bob
+	- Who should pay the transaction fees on the transaction that gives Bob 'i' and the Tumbler 'Q-i'? For now I'm assuming that Bob should pay it.

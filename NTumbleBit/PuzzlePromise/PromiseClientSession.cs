@@ -174,6 +174,7 @@ namespace NTumbleBit.PuzzlePromise
                         }
                         else
                         {
+                            // TODO: Figure out a way to generate this Cashout dynamically on the given 'i' BTCs
                             hash = new RealHash(InternalState.Cashout, InternalState.EscrowedCoin)
                             {
                                 FeeVariation = InternalState.FeeVariations[i][realJ++]
@@ -239,6 +240,7 @@ namespace NTumbleBit.PuzzlePromise
         {
             // Steps 2-4
             // Almost done, just need to figure out the Transaction CashOut things.
+            // NOTE: When this function is called, it's assumed that the TumblerEscrowRedeem (change) address is saved in the internal state.
 
             if (cashoutDestination == null)
                 throw new ArgumentNullException(nameof(cashoutDestination));
@@ -248,7 +250,8 @@ namespace NTumbleBit.PuzzlePromise
             AssertState(PromiseClientStates.WaitingSignatureRequest);
 
             Transaction cashout = new Transaction();
-            // TODO: Figure out the cashout format to give j Bitcoins to Bob and Q-J to the Tumbler
+            /*
+            TODO: Make the format below a function like what we do in the Server side!
             cashout.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
             cashout.Inputs[0].ScriptSig = new Script(
                 Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
@@ -256,21 +259,32 @@ namespace NTumbleBit.PuzzlePromise
                 Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
                 );
             cashout.Inputs[0].Witnessify();
+            
+            TODO: Here we should have two outputs:
+                - The first is 'i' to the 'cashoutDestination'
+                - The second should be 'InternalState.EscrowedCoin.Amount - i' to 'InternalState.change_address'
+
             cashout.AddOutput(new TxOut(InternalState.EscrowedCoin.Amount, cashoutDestination));
+
+            TODO: We should save this fee value for each level of payments, so that we can also send it to the Tumbler to figure out
+            The exact value for the fee. (Maybe this can be deterministically calculated on the server side? I'm not sure)
+
             cashout.Outputs[0].Value -= feeRate.GetFee(cashout.GetVirtualSize());
 
-            // If each payment level requires a different cashOut, then this
-            // should be moved to the first loop.
+            TODO: If each payment level requires a different cashOut, then this
+            should be moved to the first loop.
+            */
 
             HashBase[][] hashes = new HashBase[_Parameters.PaymentsCount][]; //2D
             for (int i = 0; i < _Parameters.PaymentsCount; i++)
             {
+                // TODO: Cashout will be defined here for each payment level
                 hashes[i] = new HashBase[_Parameters.GetTotalTransactionsCountPerLevel()];
                 for (int j = 0; j < Parameters.RealTransactionCountPerLevel; j++)
-                {
+                { 
                     RealHash h = new RealHash(cashout, InternalState.EscrowedCoin)
                     {
-                        FeeVariation = Money.Satoshis(i)
+                        FeeVariation = Money.Satoshis(j)
                     };
                     hashes[i][j] = h;
                 }
@@ -305,6 +319,10 @@ namespace NTumbleBit.PuzzlePromise
                 FakeIndexesHash = PromiseUtils.HashIndexes(ref indexSalt, fakeIndices),
             };
             InternalState.IndexSalt = indexSalt;
+            /*
+                TODO:
+                Add the cashOutDestination to the InternalState so that it can be later sent through the reveal step.
+             */
             InternalState.Cashout = cashout.Clone();
             InternalState.Status = PromiseClientStates.WaitingCommitments;
             InternalState.FakeColumns = fakeIndices;
@@ -355,6 +373,7 @@ namespace NTumbleBit.PuzzlePromise
 
             }
             InternalState.Status = PromiseClientStates.WaitingCommitmentsProof;
+            // TODO: Add the cashoutDestintation to the things Bob reveals to the Tumbler.
             return new ClientRevelation(fakeIndices.ToArray(), InternalState.IndexSalt, salts, feeVariations);
         }
 
@@ -380,7 +399,7 @@ namespace NTumbleBit.PuzzlePromise
                 var fakeHashes = _Hashes[i].OfType<FakeHash>().ToArray();
                 for (int j = 0; j < fakeHashes.Length; j++)
                 {
-                    // TODO: prove that the solutions are lined up in same order as the hashes.
+                    // TODO: check that the solutions are lined up in same order as the hashes.
                     var fakeHash = fakeHashes[j];
                     var solution = proof.FakeSolutions[i][j];
 
@@ -489,7 +508,6 @@ namespace NTumbleBit.PuzzlePromise
 
         public Transaction GetSignedTransaction(PuzzleSolution solution, int paymentNumber)
         {
-            // Fix the Exception message to include the number of the puzzle.
             var tx = GetSignedTransactions(solution, paymentNumber).FirstOrDefault();
             if (tx == null)
                 throw new PuzzleException($"Wrong solution for the puzzle {paymentNumber}");

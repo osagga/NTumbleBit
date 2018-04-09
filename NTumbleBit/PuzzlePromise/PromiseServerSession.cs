@@ -168,23 +168,14 @@ namespace NTumbleBit.PuzzlePromise
             return promises;
         }
 
-        public ServerCommitmentsProof CheckRevelation(ClientRevelation revelation, IDestination cashoutDestination, FeeRate feeRate)
-        {
-            // See notes in the function below
-            if (cashoutDestination == null)
-                throw new ArgumentNullException(nameof(cashoutDestination));
-            return CheckRevelation(revelation, cashoutDestination.ScriptPubKey, feeRate);
-        }
-
-        public ServerCommitmentsProof CheckRevelation(ClientRevelation revelation, Script cashoutDestination, FeeRate feeRate)
+        public ServerCommitmentsProof CheckRevelation(ClientRevelation revelation)
         {
             /*
               * Steps 7, 9
-              * Almost ready, just need to figure out:
-              * - The CashOutFormat for the validation of RealSet.
-              * - How to get the cashoutDestination and the feeRate,
-              *   for now I pass them in like in "CreateSignatureRequest"
-              *   from ClientSession.
+              * TODO:
+              * Almost ready, just need to do the following:
+              * - Make the function 'getCashOut' to check the validation of RealSet.
+              * - BobCashoutDestination should be part of the revelation
              */
 
             if (revelation == null)
@@ -206,16 +197,17 @@ namespace NTumbleBit.PuzzlePromise
                 throw new PuzzleException("Invalid index salt");
             }
 
+            // TODO: Make this a function 'getCashOut' that takes as an input ('Q', 'i', BobCashoutDestination, TumblerCashoutDestination)
+            // And returns the cashout
             Transaction cashout = new Transaction();
-            // TODO: Figure out the cashout format for j Bitcoins
-            cashout.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
-            cashout.Inputs[0].ScriptSig = new Script(
-                Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
-                Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
-                Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
-                );
-            cashout.AddOutput(new TxOut(InternalState.EscrowedCoin.Amount, cashoutDestination));
-            cashout.Outputs[0].Value -= feeRate.GetFee(cashout.GetVirtualSize());
+            // cashout.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
+            // cashout.Inputs[0].ScriptSig = new Script(
+            //     Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+            //     Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+            //     Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
+            //     );
+            // cashout.AddOutput(new TxOut(i, cashoutDestination));
+            // cashout.AddOutput(new TxOut(Q - i, TumblerCashoutDestination));
 
 
             var solutions = new PuzzleSolution[Parameters.PaymentsCount][];
@@ -227,7 +219,8 @@ namespace NTumbleBit.PuzzlePromise
                 {
                     var feeVariation = revelation.FeeVariations[i][j];
                     var encrypted = InternalState.EncryptedSignatures[i][RealIndexes[j]];
-                    // Check if this function approved!
+                    // TODO: Implement the function below
+                    // Transaction cashout = getCashOut(InternalState.EscrowedCoin.Amount, i, cashoutDestination, InternalState.TumblerRedeemAddress);
                     var actualSignedHash = Parameters.CreateRealHash(cashout, InternalState.EscrowedCoin, feeVariation);
                     if (actualSignedHash != encrypted.SignedHash)
                         throw new PuzzleException("Incorrect feeVariation provided");

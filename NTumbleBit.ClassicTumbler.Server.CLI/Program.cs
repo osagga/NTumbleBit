@@ -38,6 +38,7 @@ namespace NTumbleBit.ClassicTumbler.Server.CLI
 			{
 				// We need to ask the user (Bob) to input the amount Q that the number
 				// of puzzles is made accordingly.
+				// Or it could be an input in the config file?
 				var config = new TumblerConfiguration();
 				config.LoadArgs(args);
 				try

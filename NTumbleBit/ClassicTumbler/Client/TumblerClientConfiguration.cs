@@ -112,6 +112,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 
 		public TumblerClientConfiguration LoadArgs(String[] args)
 		{
+			// TODO: Maybe the PaymentCount should be added as early as here!
+			
 			ConfigurationFile = args.Where(a => a.StartsWith("-conf=", StringComparison.Ordinal)).Select(a => a.Substring("-conf=".Length).Replace("\"", "")).FirstOrDefault();
 			DataDir = args.Where(a => a.StartsWith("-datadir=", StringComparison.Ordinal)).Select(a => a.Substring("-datadir=".Length).Replace("\"", "")).FirstOrDefault();
 			if(DataDir != null && ConfigurationFile != null)

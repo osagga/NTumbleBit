@@ -84,7 +84,9 @@ namespace NTumbleBit
 					Op.GetPushOp(escrowCoin.Redeem.ToBytes()));
 			tx.Inputs[0].Witnessify();
 			tx.Inputs[0].Sequence = 0;
-
+			// NOTE: I don't think we need to play with the 'Amount' here since it really just
+			// depends on what the escrowCoin had initially, so this value will follow whatever
+			// we initially set the escrow to have.
 			tx.Outputs.Add(new TxOut(escrowCoin.Amount, InternalState.RedeemDestination));
 			tx.Outputs[0].Value -= feeRate.GetFee(tx.GetVirtualSize());
 

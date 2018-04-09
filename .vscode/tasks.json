@@ -1,0 +1,15 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "build",
+                "${workspaceFolder}/NTumbleBit.ClassicTumbler.Client.CLI/NTumbleBit.ClassicTumbler.Client.CLI.csproj"
+            ],
+            "problemMatcher": "$msCompile"
+        }
+    ]
+}

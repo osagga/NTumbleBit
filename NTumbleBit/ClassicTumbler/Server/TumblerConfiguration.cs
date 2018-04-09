@@ -18,12 +18,10 @@ namespace NTumbleBit.ClassicTumbler.Server
 	public class TumblerConfiguration
 	{
 		/*
-			We might need to add a new method here for the PaymentHubMode Parameters:
-				- 	Bob must input the value Q to indicate the amount he's paid, and that should be passed to 
+			TODO?: We might need to add a new method here for the PaymentHubMode Parameters:
+				- 	Bob must input the value Q to indicate the amount he want to receive, and that should be passed to 
 					the parameters.
 		 */
-		// 
-		// 
 		public TumblerConfiguration()
 		{
 			ClassicTumblerParameters = new ClassicTumblerParameters();
@@ -151,6 +149,7 @@ namespace NTumbleBit.ClassicTumbler.Server
 				throw new ConfigException($"Invalid cycle name, choose among {String.Join(",", standardCycles.ToEnumerable().Select(c => c.FriendlyName).ToArray())}");
 
 			ClassicTumblerParameters.CycleGenerator = standardCycle.Generator;
+			// TODO: Not sure if we need to change this too
 			ClassicTumblerParameters.Denomination = standardCycle.Denomination;
 			var torEnabled = config.GetOrDefault<bool>("tor.enabled", true);
 			if(torEnabled)
@@ -168,6 +167,7 @@ namespace NTumbleBit.ClassicTumbler.Server
 			RPC = RPCArgs.Parse(config, Network);
 
 			//0.1% fee by default
+			// TODO: Should the fee now be 0.1% of the PaymentCount?
 			var defaultFee = Money.Satoshis((decimal)ClassicTumblerParameters.Denomination.Satoshi * 0.001m);
 			ClassicTumblerParameters.Fee = config.GetOrDefault<Money>("tumbler.fee", defaultFee);
 			TorPath = config.GetOrDefault<string>("torpath", "tor");
