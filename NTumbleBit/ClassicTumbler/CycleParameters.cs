@@ -130,6 +130,7 @@ namespace NTumbleBit.ClassicTumbler
 	{
 		public CycleParameters()
 		{
+            // TODO: We might need to increase the period of the "PaymentPhaseDuration" so that Alice can have time to run the stuff.
 			Start = 0;
 			RegistrationDuration = 18;
 			ClientChannelEstablishmentDuration = 3;

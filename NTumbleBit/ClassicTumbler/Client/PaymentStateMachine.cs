@@ -420,15 +420,15 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var commitments = bob.SignHashes(PromiseClientSession.Id, sigReq);
 							var revelation = PromiseClientSession.Reveal(commitments);
 							var proof = bob.CheckRevelation(PromiseClientSession.Id, revelation);
-							var puzzle = PromiseClientSession.CheckCommitmentProof(proof);
+							var puzzles = PromiseClientSession.CheckCommitmentProof(proof);
 							/*
 							TODO: Need to figure out a way to coordinate the puzzles from Bob to Alice.
 								- Should I just send all of them at once from Bob to Alice? Or One by one.
 									- It might be a bit tricky doing the one by one approach given that this function is 
 										run by threads and it's not continuos.
 							 */
-							 // NOTE: For now I'm just passing the first puzzle, but ultimately, we would need to pass all of them.
-							SolverClientSession.AcceptPuzzle(puzzle[0]);
+							 // TODO: Define this Puzzles list that simulates Alice recieving all of the puzzles at once (since they are the same person for now)
+                            SolverClientSession.Parameters.Puzzles = puzzles;
 							Status = PaymentStateMachineStatus.TumblerChannelCreated;
 						}
 						else if(Status == PaymentStateMachineStatus.TumblerChannelCreated)
@@ -449,8 +449,19 @@ namespace NTumbleBit.ClassicTumbler.Client
 						{
 							alice = Runtime.CreateTumblerClient(cycle.Start, Identity.Alice);
 							Logs.Client.LogDebug("Starting the puzzle solver protocol...");
+
+                            // TODO: This is the total number of payments 'Q' that Alice has escrowed.
+                            SolverClientSession.Parameters.AlicePaymentCount = 99;
+                            // TODO: This is the number of the puzzle we are currently solving.
+                            SolverClientSession.Parameters.CurrentPuzzleNum = 0;
+
+                            // NOTE: This function assumes that Parameters.CurrentPuzzleNum is the puzzle that we need to get the solution for.
+                            SolverClientSession.AcceptPuzzle();
+
 							var puzzles = SolverClientSession.GeneratePuzzles();
 							alice.BeginSolvePuzzles(SolverClientSession.Id, puzzles);
+
+                            // ------
 							NeedSave = true;
 							Status = PaymentStateMachineStatus.ProcessingPayment;
 						}
@@ -469,7 +480,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var solutionKeys = alice.CheckRevelation(SolverClientSession.Id, revelation2);
 							var blindFactors = SolverClientSession.GetBlindFactors(solutionKeys);
 							var offerInformation = alice.CheckBlindFactors(SolverClientSession.Id, blindFactors);
-
+                            
 							// NOTE: It seems like this creates and signs T_puzzle
 							var offerSignature = SolverClientSession.SignOffer(offerInformation);
 							
@@ -488,9 +499,11 @@ namespace NTumbleBit.ClassicTumbler.Client
 								solutionKeys = alice.FulfillOffer(SolverClientSession.Id, offerSignature);
 								SolverClientSession.CheckSolutions(solutionKeys);
 								var tumblingSolution = SolverClientSession.GetSolution();
-								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, 0);
+                                // NOTE: Assuems 'CurrentPuzzleNum' as an index value (from 0 -> {i-1})
+								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, SolverClientSession.Parameters.CurrentPuzzleNum);
 								Logs.Client.LogDebug("Got puzzle solution cooperatively from the tumbler");
 								Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
+                                //NOTE: Bob would cashout only in the cashOut phase, not in this phase.
 								Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.TumblerCashout, correlation, new TrustedBroadcastRequest()
 								{
 									BroadcastAt = cycle.GetPeriods().ClientCashout.Start,
@@ -498,6 +511,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 								});
 								if(Cooperative)
 								{
+                                    // If Alice is coopretive, we make T_cash and give it to the Tumbler
 									try
 									{
 										// No need to await for it, it is a just nice for the tumbler (we don't want the underlying socks connection cut before the escape key is sent)

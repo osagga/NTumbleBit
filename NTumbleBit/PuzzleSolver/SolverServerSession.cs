@@ -386,7 +386,7 @@ namespace NTumbleBit.PuzzleSolver
 			if(!offer.Inputs.AsIndexedInputs().First().VerifyScript(InternalState.EscrowedCoin))
 				throw new PuzzleException("invalid-tumbler-signature");
 
-			
+            // NOTE: This is creating T_solve that contains the solutions to the hashed values in T_puzzle
 			var solutions = InternalState.SolvedPuzzles.Select(s => s.SolutionKey).ToArray();
 			Transaction fulfill = new Transaction();
 			fulfill.Inputs.Add(new TxIn());
@@ -396,7 +396,7 @@ namespace NTumbleBit.PuzzleSolver
 			fulfill.Inputs[0].ScriptSig = fulfillScript + Op.GetPushOp(InternalState.OfferCoin.Redeem.ToBytes());
 			fulfill.Inputs[0].Witnessify();
 			fulfill.Outputs[0].Value -= feeRate.GetFee(fulfill.GetVirtualSize());
-
+    
 			InternalState.OfferClientSignature = clientSignature;
 			InternalState.Status = SolverServerStates.WaitingEscape;
 			return new TrustedBroadcastRequest
@@ -421,6 +421,7 @@ namespace NTumbleBit.PuzzleSolver
 
 		public Transaction GetSignedEscapeTransaction(TransactionSignature clientSignature, FeeRate feeRate, Script cashout)
 		{
+            // NOTE: This function generates T_cash that the Tumbler can use!
 			AssertState(SolverServerStates.WaitingEscape);
 			if(clientSignature.SigHash != (SigHash.AnyoneCanPay | SigHash.None))
 				throw new PuzzleException("invalid-sighash");

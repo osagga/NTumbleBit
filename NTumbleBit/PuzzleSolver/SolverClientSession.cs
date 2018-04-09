@@ -201,10 +201,10 @@ namespace NTumbleBit.PuzzleSolver
 			InternalState.Status = SolverClientStates.WaitingPuzzle;
 		}
 
-		public void AcceptPuzzle(PuzzleValue puzzleValue)
+		public void AcceptPuzzle()
 		{
             AssertState(SolverClientStates.WaitingPuzzle);
-			InternalState.Puzzle = puzzleValue ?? throw new ArgumentNullException(nameof(puzzleValue));
+			InternalState.Puzzle = Parameters.Puzzles[Parameters.CurrentPuzzleNum] ?? throw new ArgumentNullException(nameof(CurrentPuzzleNum));
 			InternalState.Status = SolverClientStates.WaitingGeneratePuzzles;
 		}
 
@@ -296,6 +296,9 @@ namespace NTumbleBit.PuzzleSolver
 
 		public TransactionSignature SignOffer(OfferInformation offerInformation)
 		{
+            // TODO: This is the function that generates that the T_Puzzle for the client.
+            // NOTE: The client signs this Tx and sends the signature back
+            // TODO: This T_Puzzle should give J (from the InternalState? Or a paremeter passed to this function) to the Tumbler
 			if(offerInformation == null)
 				throw new ArgumentNullException(nameof(offerInformation));
 			AssertState(SolverClientStates.WaitingOffer);
@@ -309,6 +312,7 @@ namespace NTumbleBit.PuzzleSolver
 			}.ToScript();
 
 			var escrowCoin = InternalState.EscrowedCoin;
+            // TODO
 			var txOut = new TxOut(escrowCoin.Amount - offerInformation.Fee, offerScript.WitHash.ScriptPubKey.Hash);
 			var offerCoin = new Coin(escrowCoin.Outpoint, txOut).ToScriptCoin(offerScript);
 
@@ -329,6 +333,8 @@ namespace NTumbleBit.PuzzleSolver
 
 		public TransactionSignature SignEscape()
 		{
+            // TODO: This probably need to be fully changed such that we specify the output and sign with SIGHASH_ALL to secure it.
+            // TODO: Also we wouldn't be doing this step after we complete, we would do it while solving other puzzles.
 			AssertState(SolverClientStates.Completed);
 			var dummy = new Transaction();
 			dummy.Inputs.Add(new TxIn(InternalState.EscrowedCoin.Outpoint));

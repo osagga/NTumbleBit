@@ -89,7 +89,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var statusBefore = machine.GetInternalState();
 							try
 							{
-								// TODO: This executes a phase through the Update function
+								// NOTE: This executes a phase through the Update function
 								machine.Update();
 								InvalidPhaseCount = 0;
 							}

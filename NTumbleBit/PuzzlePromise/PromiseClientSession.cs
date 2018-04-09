@@ -149,6 +149,7 @@ namespace NTumbleBit.PuzzlePromise
 
         private readonly PromiseParameters _Parameters;
         private HashBase[][] _Hashes; // The list of Hashes (Beta_i in the paper)
+        private byte[][][] _Epsilons; // The list of Hashes (Beta_i in the paper)
 
         public PromiseClientSession(PromiseParameters parameters, State state) : this(parameters)
         {
@@ -175,6 +176,7 @@ namespace NTumbleBit.PuzzlePromise
                         else
                         {
                             // TODO: Figure out a way to generate this Cashout dynamically on the given 'i' BTCs
+                            // OR we can save internally a 2D array of the Cashouts and just refrence the needed one from here.
                             hash = new RealHash(InternalState.Cashout, InternalState.EscrowedCoin)
                             {
                                 FeeVariation = InternalState.FeeVariations[i][realJ++]
@@ -322,6 +324,7 @@ namespace NTumbleBit.PuzzlePromise
             /*
                 TODO:
                 Add the cashOutDestination to the InternalState so that it can be later sent through the reveal step.
+                "InternalState.cashOutDestination = cashOutDestination;"
              */
             InternalState.Cashout = cashout.Clone();
             InternalState.Status = PromiseClientStates.WaitingCommitments;
@@ -452,6 +455,7 @@ namespace NTumbleBit.PuzzlePromise
 
         private bool IsValidSignature(PuzzleSolution solution, HashBase hash, out ECDSASignature signature)
         {
+            // NOTE: The XOR operation below hashes the first input by default. So Whatever is passed there will be hased first then XORed.
             signature = null;
             var escrow = EscrowScriptPubKeyParameters.GetFromCoin(InternalState.EscrowedCoin);
             try
@@ -473,9 +477,13 @@ namespace NTumbleBit.PuzzlePromise
         internal IEnumerable<Transaction> GetSignedTransactions(PuzzleSolution solution, int paymentNumber)
         {
             /*
+               * TODO: I modified this to reflect the change below, please TEST and DEBUG THIS!
                * parameter "paymentNumber" indicates which j payment this is.
-               * TODO: In order to solve the puzzle using the "solution", we need the previous solution 
+               * NOTE: In order to solve the puzzle using the "solution", we need the previous solution 
                * to get the signatures.
+            *      - To solve this problem, we need to define an internal structure similar to "_Hashes" that holds the keys (epsilons).
+                        - This structure will be populated everytime we recover an epsilon from "cumul" below, and should be used to lookup
+                            - previous epsilons when computing the solution for the current puzzle.
                *  
              */
             if (solution == null)
@@ -487,12 +495,22 @@ namespace NTumbleBit.PuzzlePromise
             for (int i = 0; i < Parameters.RealTransactionCountPerLevel; i++)
             {
                 var hash = hashes[i];
+                
                 var quotient = i == 0 ? BigInteger.One : InternalState.Quotients[paymentNumber][i - 1]._Value;
-                cumul = cumul.Multiply(quotient).Mod(Parameters.ServerKey._Key.Modulus); // Epsilon_i
-                // Need to fix how the solution is recovered given how we need the previous solutions to get the current one.
-                solution = new PuzzleSolution(cumul);
+                
+                cumul = cumul.Multiply(quotient).Mod(Parameters.ServerKey._Key.Modulus); // Epsilon_{paymentNumber}{i}
+                _Epsilons[paymentNumber][i] = cumul.ToByteArrayUnsigned();
+                
+                var prevEpsilons = getPrevEpsilons(paymentNumber, i);
+                var key = Utils.Combine(NBitcoin.Utils.ToBytes((uint)paymentNumber, true), NBitcoin.Utils.ToBytes((uint)i, true), prevEpsilons);
+
+                // TODO: Need to fix how the solution is recovered given how we need the previous solutions to get the current one.
+                
+                solution = new PuzzleSolution(key);
+                
                 if (!IsValidSignature(solution, hash, out ECDSASignature tumblerSig))
                     continue;
+                
                 var transaction = hash.GetTransaction();
                 var bobSig = transaction.SignInput(InternalState.EscrowKey, InternalState.EscrowedCoin);
 				transaction.Inputs[0].WitScript = new WitScript(
@@ -512,6 +530,16 @@ namespace NTumbleBit.PuzzlePromise
             if (tx == null)
                 throw new PuzzleException($"Wrong solution for the puzzle {paymentNumber}");
             return tx;
+        }
+
+        public byte[] getPrevEpsilons(int PaymentNumber, int RealTransactionHash){
+            // TODO: Check by debugging that this function actually combines all the epsiolns in the specified colomn and returns it.
+            // TODO: Add a unit test.
+            var prevEpsilonsCombined = new byte[] {};
+            for (int i = PaymentNumber; i >= 0; i--){
+                prevEpsilonsCombined = Utils.Combine(prevEpsilonsCombined, _Epsilons[i][RealTransactionHash]);
+            }
+            return prevEpsilonsCombined;
         }
 
         protected new State InternalState
