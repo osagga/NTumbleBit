@@ -159,17 +159,17 @@ namespace NTumbleBit.ClassicTumbler
 				_RealPuzzleCount = value;
 			}
 		}
-
-		int _PaymentsCount;
-		public int PaymentsCount
+		
+		int _BobPaymentsCount;
+		public int BobPaymentsCount
 		{
 			get
 			{
-				return _PaymentsCount;
+				return _BobPaymentsCount;
 			}
 			set
 			{
-				_PaymentsCount = value;
+				_BobPaymentsCount = value;
 			}
 		}
 
@@ -225,7 +225,7 @@ namespace NTumbleBit.ClassicTumbler
 			stream.ReadWrite(ref _VoucherKey);
 			stream.ReadWriteC(ref _Denomination);
 			stream.ReadWriteC(ref _Fee);
-			stream.ReadWrite(ref _PaymentsCount);
+			stream.ReadWrite(ref _BobPaymentsCount);
 			stream.ReadWrite(ref _FakePuzzleCount);
 			stream.ReadWrite(ref _RealPuzzleCount);
 			stream.ReadWrite(ref _FakeTransactionCount);
@@ -271,7 +271,7 @@ namespace NTumbleBit.ClassicTumbler
 		public PromiseParameters CreatePromiseParamaters()
 		{
 			/*
-		TODO:
+		TODO: [DONE]
 			- We need to add a definition to "BobPaymentsCount" in the current class.
 			- When this is called, it's assumed that the Value of "BobPaymentsCount" is set.
 			- We also need to define the corresponding field in the class "PromiseParameters"
@@ -282,7 +282,7 @@ namespace NTumbleBit.ClassicTumbler
                 FakeFormat = FakeFormat,
 				FakeTransactionCountPerLevel = FakeTransactionCount,
 				RealTransactionCountPerLevel = RealTransactionCount,
-				PaymentsCount = PaymentsCount,
+				PaymentsCount = BobPaymentsCount,
 				ServerKey = ServerKey.PublicKey
 			};
 		}

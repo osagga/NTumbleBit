@@ -65,12 +65,26 @@ namespace NTumbleBit.ClassicTumbler
 			}
 		}
 
+		int _RequestedPaymentsCount;
+		public int RequestedPaymentsCount
+		{
+			get
+			{
+				return _RequestedPaymentsCount;
+			}
+			set
+			{
+				_RequestedPaymentsCount = value;
+			}
+		}
+
 		public void ReadWrite(BitcoinStream stream)
 		{
 			stream.ReadWriteC(ref _EscrowKey);
 			stream.ReadWriteAsVarString(ref _Signature);
 			stream.ReadWrite(ref _Nonce);
 			stream.ReadWrite(ref _CycleStart);
+			stream.ReadWrite(ref _RequestedPaymentsCount);
 		}
 	}
 }

@@ -190,7 +190,7 @@ namespace NTumbleBit.ClassicTumbler
 			InternalState.Status = TumblerClientSessionStates.WaitingGenerateTumblerTransactionKey;
 		}
 
-		public OpenChannelRequest GetOpenChannelRequest()
+		public OpenChannelRequest GetOpenChannelRequest(int bobPaymentCount)
 		{
 			AssertState(TumblerClientSessionStates.WaitingGenerateTumblerTransactionKey);
 			var escrow = new Key();
@@ -209,6 +209,7 @@ namespace NTumbleBit.ClassicTumbler
 				EscrowKey = escrow.PubKey,
 				Signature = InternalState.SignedVoucher,
 				CycleStart = InternalState.UnsignedVoucher.CycleStart,
+				RequestedPaymentsCount = bobPaymentCount,
 				Nonce = InternalState.UnsignedVoucher.Nonce,
 			};
 			InternalState.SignedVoucher = null;
@@ -216,7 +217,7 @@ namespace NTumbleBit.ClassicTumbler
 			return result;
 		}
 
-		public PromiseClientSession ReceiveTumblerEscrowedCoin(ScriptCoin escrowedCoin)
+		public PromiseClientSession ReceiveTumblerEscrowedCoin(ScriptCoin escrowedCoin, Script TumblerChangeAddress)
 		{
 			// TODO: This function should also expect another input that is "change_adress" of the Tumbler
 			// the second input should be saved in the "InternalState" along with the Escrow.
@@ -239,6 +240,7 @@ namespace NTumbleBit.ClassicTumbler
 			var session = new PromiseClientSession(Parameters.CreatePromiseParamaters());
 			session.SetChannelId(InternalState.ChannelId);
 			session.ConfigureEscrowedCoin(escrowedCoin, InternalState.TumblerEscrowKey);
+			session.ConfigureTumblerCashOutAddress(TumblerChangeAddress);
 			InternalState.TumblerEscrowKey = null;
 			return session;
 		}

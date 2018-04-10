@@ -53,6 +53,19 @@ namespace NTumbleBit.ClassicTumbler.Server.Models
 			}
 		}
 
+		Script _ChangeAddress;
+		public Script ChangeAddress
+		{
+			get
+			{
+				return _ChangeAddress;
+			}
+			set
+			{
+				_ChangeAddress = value;
+			}
+		}
+
 
 		MerkleBlock _MerkleProof;
 		public MerkleBlock MerkleProof
@@ -72,6 +85,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Models
 			stream.ReadWriteAsVarInt(ref _OutputIndex);
 			stream.ReadWrite(ref _Transaction);
 			stream.ReadWrite(ref _MerkleProof);
+			stream.ReadWrite(ref _ChangeAddress);
 			stream.ReadWriteC(ref _EscrowInitiatorKey);
 		}
 	}

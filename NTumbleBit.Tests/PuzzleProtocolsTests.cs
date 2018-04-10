@@ -166,18 +166,19 @@ namespace NTumbleBit.Tests
 
 			Key serverEscrow = new Key();
 			Key clientEscrow = new Key();
-
+			int paymentCount = 5;
             var parameters = new PromiseParameters(key.PubKey)
             {
+				// NOTE: It's expected that the PromiseParameters has a parameter "PaymentsCount" to indicate how many Payments we make
                 FakeTransactionCountPerLevel = 5,
                 RealTransactionCountPerLevel = 5,
-                PaymentsCount = 5 //Not sure if this is the way to go.
+                PaymentsCount = paymentCount
             };
 
 			var client = new PromiseClientSession(parameters);
 			var server = new PromiseServerSession(parameters);
 
-			var coin = CreateEscrowCoin(serverEscrow.PubKey, clientEscrow.PubKey);
+			var coin = CreateEscrowCoin(serverEscrow.PubKey, clientEscrow.PubKey, paymentCount);
 
 			client.ConfigureEscrowedCoin(coin, clientEscrow);
 			SignaturesRequest request = client.CreateSignatureRequest(clientEscrow.PubKey.Hash, FeeRate);
@@ -230,13 +231,13 @@ namespace NTumbleBit.Tests
 			Assert.True(bb.Verify(resigned));
 		}
 
-		private ScriptCoin CreateEscrowCoin(PubKey initiator, PubKey receiver)
+		private ScriptCoin CreateEscrowCoin(PubKey initiator, PubKey receiver, int paymentCount)
 		{
 			var redeem = new EscrowScriptPubKeyParameters(initiator, receiver, new LockTime(10)).ToScript();
 			var scriptCoin = new Coin(new OutPoint(new uint256(RandomUtils.GetBytes(32)), 0),
 				new TxOut
 				{
-					Value = Money.Coins(1.5m),
+					Value = Money.Coins((decimal)paymentCount),
 					ScriptPubKey = redeem.WitHash.ScriptPubKey.Hash.ScriptPubKey
 				}).ToScriptCoin(redeem);
 			return scriptCoin;

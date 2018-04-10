@@ -31,6 +31,12 @@ namespace NTumbleBit
 				get;
 				set;
 			}
+			// NOTE: This field is used to store the address in which the Tumbler wants to receive its change at.
+			public Script TumblerCashOutDestination
+			{
+				get;
+				set;
+			}
 		}
 
 		protected State InternalState
@@ -54,6 +60,11 @@ namespace NTumbleBit
 		{
             InternalState.EscrowKey = escrowKey ?? throw new ArgumentNullException(nameof(escrowKey));
 			InternalState.EscrowedCoin = escrowedCoin ?? throw new ArgumentNullException(nameof(escrowedCoin));
+		}
+
+		public virtual void ConfigureTumblerCashOutAddress(Script tumblerCashoutAddress)
+		{
+            InternalState.TumblerCashOutDestination = tumblerCashoutAddress ?? throw new ArgumentNullException(nameof(tumblerCashoutAddress));
 		}
 
 		public ScriptCoin EscrowedCoin

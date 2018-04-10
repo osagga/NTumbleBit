@@ -29,6 +29,12 @@ namespace NTumbleBit.PuzzleSolver
 		{
 			get; set;
 		}
+
+		public PuzzleValue[] Puzzles
+		{
+			get; set;
+		}
+
 		public int RealPuzzleCount
 		{
 			get; set;

@@ -150,6 +150,7 @@ namespace NTumbleBit.PuzzlePromise
         private readonly PromiseParameters _Parameters;
         private HashBase[][] _Hashes; // The list of Hashes (Beta_i in the paper)
         private byte[][][] _Epsilons; // The list of Hashes (Beta_i in the paper)
+        private Transaction[] _cashOut; // The list of cashouts for each transaction
 
         public PromiseClientSession(PromiseParameters parameters, State state) : this(parameters)
         {
@@ -232,6 +233,11 @@ namespace NTumbleBit.PuzzlePromise
             InternalState.Status = PromiseClientStates.WaitingSignatureRequest;
         }
 
+        public override void ConfigureTumblerCashOutAddress(Script tumblerAddress)
+        {
+            base.ConfigureTumblerCashOutAddress(tumblerAddress);
+        }
+
         public SignaturesRequest CreateSignatureRequest(IDestination cashoutDestination, FeeRate feeRate)
         {
             if (cashoutDestination == null)
@@ -241,8 +247,6 @@ namespace NTumbleBit.PuzzlePromise
         public SignaturesRequest CreateSignatureRequest(Script cashoutDestination, FeeRate feeRate)
         {
             // Steps 2-4
-            // Almost done, just need to figure out the Transaction CashOut things.
-            // NOTE: When this function is called, it's assumed that the TumblerEscrowRedeem (change) address is saved in the internal state.
 
             if (cashoutDestination == null)
                 throw new ArgumentNullException(nameof(cashoutDestination));
@@ -251,36 +255,27 @@ namespace NTumbleBit.PuzzlePromise
 
             AssertState(PromiseClientStates.WaitingSignatureRequest);
 
-            Transaction cashout = new Transaction();
-            /*
-            TODO: Make the format below a function like what we do in the Server side!
-            cashout.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
-            cashout.Inputs[0].ScriptSig = new Script(
-                Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
-                Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
-                Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
-                );
-            cashout.Inputs[0].Witnessify();
-            
-            TODO: Here we should have two outputs:
-                - The first is 'i' to the 'cashoutDestination'
-                - The second should be 'InternalState.EscrowedCoin.Amount - i' to 'InternalState.change_address'
-
-            cashout.AddOutput(new TxOut(InternalState.EscrowedCoin.Amount, cashoutDestination));
-
-            TODO: We should save this fee value for each level of payments, so that we can also send it to the Tumbler to figure out
-            The exact value for the fee. (Maybe this can be deterministically calculated on the server side? I'm not sure)
-
-            cashout.Outputs[0].Value -= feeRate.GetFee(cashout.GetVirtualSize());
-
-            TODO: If each payment level requires a different cashOut, then this
-            should be moved to the first loop.
-            */
+            // TODO: We should save this fee value for each level of payments, so that we can also send it to the Tumbler to figure out
+            // The exact value for the fee. (Maybe this can be deterministically calculated on the server side? I'm not sure)
 
             HashBase[][] hashes = new HashBase[_Parameters.PaymentsCount][]; //2D
             for (int i = 0; i < _Parameters.PaymentsCount; i++)
             {
-                // TODO: Cashout will be defined here for each payment level
+                Transaction cashout = new Transaction();
+                cashout.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
+                cashout.Inputs[0].ScriptSig = new Script(
+                    Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+                    Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+                    Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
+                );
+                cashout.Inputs[0].Witnessify();
+                /* NOTE: This value should be "Denomination * i" so that it's more adjustable.
+                    - The problem though is that 'Denomination' is not accesibale from here,
+                        So maybe that should be added to the promiseParameters?
+                */
+                cashout.AddOutput(new TxOut(new Money((decimal) i), cashoutDestination));
+                cashout.AddOutput(InternalState.EscrowedCoin.Amount, InternalState.TumblerCashOutDestination);
+                _cashOut[i] = cashout;
                 hashes[i] = new HashBase[_Parameters.GetTotalTransactionsCountPerLevel()];
                 for (int j = 0; j < Parameters.RealTransactionCountPerLevel; j++)
                 { 

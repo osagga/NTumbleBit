@@ -352,7 +352,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 							Logs.Client.LogInformation("Begin ask to open the channel...");
 							//Client asks the Tumbler to make a channel
 							// TODO: Before calling this function, it's expected that the InternalState have the value of the requested Payments for Bob
-							var bobEscrowInformation = ClientChannelNegotiation.GetOpenChannelRequest();
+							int BobRequestedPaymentsCount = 12;
+							var bobEscrowInformation = ClientChannelNegotiation.GetOpenChannelRequest(BobRequestedPaymentsCount);
 							uint160 channelId = null;
 							try
 							{
@@ -390,15 +391,20 @@ namespace NTumbleBit.ClassicTumbler.Client
 								break;
 							}
 
+							if(tumblerEscrow.ChangeAddress == null)
+							{
+								Logs.Client.LogError("Tumbler didn't send a cashOut wallet address");
+								Status = PaymentStateMachineStatus.Wasted;
+								break;
+							}
+
 							var txOut = tumblerEscrow.Transaction.Outputs[tumblerEscrow.OutputIndex];
 							var outpoint = new OutPoint(tumblerEscrow.Transaction.GetHash(), tumblerEscrow.OutputIndex);
 							var escrowCoin = new Coin(outpoint, txOut).ToScriptCoin(ClientChannelNegotiation.GetTumblerEscrowParameters(tumblerEscrow.EscrowInitiatorKey).ToScript());
 							
+							// NOTE: This saves the Tumbler cashoutAddress so that it can be recalled internally.
+							PromiseClientSession = ClientChannelNegotiation.ReceiveTumblerEscrowedCoin(escrowCoin, tumblerEscrow.ChangeAddress);
 
-							// TODO:
-							// Here we need to also pass the Tumbler's "change_address" that we got in "tumblerEscrow" so that it
-							// can saved in the InternalState.
-							PromiseClientSession = ClientChannelNegotiation.ReceiveTumblerEscrowedCoin(escrowCoin);
 							Logs.Client.LogInformation("Tumbler expected escrowed coin received");
 							
 							//Tell to the block explorer we need to track that address (for checking if it is confirmed in payment phase)
@@ -427,7 +433,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 									- It might be a bit tricky doing the one by one approach given that this function is 
 										run by threads and it's not continuos.
 							 */
-							 // TODO: Define this Puzzles list that simulates Alice recieving all of the puzzles at once (since they are the same person for now)
+							 // TODO: Define this Puzzles list that simulates Alice receiving all of the puzzles at once (since they are the same person for now)
                             SolverClientSession.Parameters.Puzzles = puzzles;
 							Status = PaymentStateMachineStatus.TumblerChannelCreated;
 						}

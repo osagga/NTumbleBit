@@ -324,9 +324,11 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 					NOTE (Problem maybe?):
 						Should there be an upper limit to how much (Q) Bob can ask for? He can get all the Tumbler's Money
 						if he wants.
-				 */
-				 // TODO: This first parameter should change to 'Q' that Bob specifies.
-				var txOut = new TxOut(Parameters.Denomination, escrow.ToScript().WitHash.ScriptPubKey.Hash);
+				*/
+				// TODO: This first parameter should change to 'Q' that Bob specifies.
+				var bobRequestedPaymentCount = request.RequestedPaymentsCount;
+				//TODO: Double check that you can multiply a Money Object with an Int
+				var txOut = new TxOut(new Money( Parameters.Denomination * bobRequestedPaymentCount), escrow.ToScript().WitHash.ScriptPubKey.Hash);
 				
 				// NOTE: This checks if the Tumbler has enough funds to give 'Q' of the denomination to Bob
 				var unused = Services.WalletService.FundTransactionAsync(txOut, fee)
@@ -357,6 +359,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 												- 'Q' here references to the number of BTCs that Bob asked for above, and it should be the 
 													same as the number of BTCs the Tumbler escrowed.
 							 */
+							Parameters.BobPaymentsCount = bobRequestedPaymentCount;
 							var session = new PromiseServerSession(Parameters.CreatePromiseParamaters());
 							// TODO: This is the way the Tumbler uses to generate new address, we need to use something similar to generate
 							// the address the Tumbler sends to Bob to receive the change of the escrow transaction.
@@ -397,22 +400,30 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			var session = GetPromiseServerSession(cycle.Start, channelId, CyclePhase.TumblerChannelEstablishment, false);
 			if(session == null)
 				return null;
+
+			
+
 			var tx = (await Services.BlockExplorerService
 							.GetTransactionsAsync(session.EscrowedCoin.TxOut.ScriptPubKey, true))
 							.FirstOrDefault(t => t.Transaction.GetHash() == session.EscrowedCoin.Outpoint.Hash);
+			
 			if(session == null || tx == null)
 				return null;
+			
 			AssertNotDuplicateQuery(cycle.Start, channelId);
+			// TODO: Check if we actually want this to be "ConfigureAwait(false)"
+			var cashout = await Services.WalletService.GenerateAddressAsync().ConfigureAwait(false);
+			// TODO: Check the way I'm getting the 'correlation' here
+			var correlation = new CorrelationId(channelId);
+			Tracker.AddressCreated(cycle.Start, TransactionType.TumblerCashout, cashout.ScriptPubKey, correlation);
 
-			// TODO: We need to add a new field here that contains the change address of the Tumbler's wallet,
-			// so that Bob can use that when building transactions.
-			// We would also need to save this address in some internal state or in the 'session' so that the Tumbler
-			// Can access it later when rebuilding Bob's transactions in the verification step.
 			return new TumblerEscrowData()
 			{
 				Transaction = tx.Transaction,
 				OutputIndex = (int)session.EscrowedCoin.Outpoint.N,
 				EscrowInitiatorKey = session.GetInternalState().EscrowKey.PubKey,
+				// NOTE: I added this new field here
+				ChangeAddress = cashout.ScriptPubKey,
 				MerkleProof = tx.MerkleProof
 			};
 		}
