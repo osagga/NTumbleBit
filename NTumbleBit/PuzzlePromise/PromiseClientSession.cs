@@ -274,6 +274,7 @@ namespace NTumbleBit.PuzzlePromise
                         So maybe that should be added to the promiseParameters?
                 */
                 cashout.AddOutput(new TxOut(new Money((decimal) i), cashoutDestination));
+                cashout.Outputs[0].Value -= feeRate.GetFee(cashout.GetVirtualSize());
                 cashout.AddOutput(InternalState.EscrowedCoin.Amount, InternalState.TumblerCashOutDestination);
                 _cashOut[i] = cashout;
                 hashes[i] = new HashBase[_Parameters.GetTotalTransactionsCountPerLevel()];
