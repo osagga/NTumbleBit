@@ -254,7 +254,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 								TODO [DONE]: The amount of money Alice escrows here depends on the 'Parameters' that were
 								passed to the ClientChannelNegotiation.
 							 */
-							 
+
 							//Client create the escrow
 							var escrowTxOut = ClientChannelNegotiation.BuildClientEscrowTxOut();
 							feeRate = GetFeeRate();
@@ -275,10 +275,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var redeemDestination = Services.WalletService.GenerateAddressAsync().GetAwaiter().GetResult().ScriptPubKey;
 							var channelId = new uint160(RandomUtils.GetBytes(20));
 							
-							// TODO: What does this function do?
 							// NOTE: It seems like this function checks the Escrow, stores the Escrow Tx along with the address to receive the refund at.
 							SolverClientSession = ClientChannelNegotiation.SetClientSignedTransaction(channelId, clientEscrowTx, redeemDestination);
-
 
 							correlation = new CorrelationId(SolverClientSession.Id);
 
@@ -312,10 +310,6 @@ namespace NTumbleBit.ClassicTumbler.Client
 								//Client asks the public key of the Tumbler and sends its own
 								alice.BeginSignVoucher(new SignVoucherRequest
 								{
-									/*
-										TODO: If needed, we might also need to send to the Tumbler the amount of BTCs
-											that we escrowed, but I think it's included with the Transaction parameter.
-									 */
 									MerkleProof = clientTx.MerkleProof,
 									Transaction = clientTx.Transaction,
 									KeyReference = state.TumblerEscrowKeyReference,
@@ -436,7 +430,7 @@ namespace NTumbleBit.ClassicTumbler.Client
                             SolverClientSession.Parameters.Puzzles = puzzles;
 							
 							// TODO [DONE]: This is the number of the puzzle we are currently solving.
-                            SolverClientSession.Parameters.CurrentPuzzleNum = 0;
+                            SolverClientSession.Parameters.CurrentPuzzleNum = 1;
 							
 							Status = PaymentStateMachineStatus.TumblerChannelCreated;
 						}
@@ -487,9 +481,11 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var offerInformation = alice.CheckBlindFactors(SolverClientSession.Id, blindFactors);
                             
 							// NOTE: It seems like this creates and signs T_puzzle
+							// TODO: Finish some work inside.
 							var offerSignature = SolverClientSession.SignOffer(offerInformation);
 							
 							// NOTE: It seems like this function creates the redeem transaction for T_puzzle
+							// TODO: finish some work inside.
 							var offerRedeem = SolverClientSession.CreateOfferRedeemTransaction(feeRate);
 							
 							Logs.Client.LogDebug("Puzzle solver protocol ended...");

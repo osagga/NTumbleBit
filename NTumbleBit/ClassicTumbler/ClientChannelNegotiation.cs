@@ -160,7 +160,7 @@ namespace NTumbleBit.ClassicTumbler
 
 		public TxOut BuildClientEscrowTxOut()
 		{
-			// TODO: This function builds T_escr from Alice to the Tumbler
+			// NOTE: This function builds T_escr from Alice to the Tumbler
 			AssertState(TumblerClientSessionStates.WaitingClientTransaction);
 			// TODO [DEBUG]: Change the first parameter HERE, I think we should make it as 'some multiple * Parameters.Denomination'!
 			return new TxOut( (Parameters.AlicePaymentsCount * Parameters.Denomination) + Parameters.Fee, InternalState.ClientEscrow.WitHash.ScriptPubKey.Hash);

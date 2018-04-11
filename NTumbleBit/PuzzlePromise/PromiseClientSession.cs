@@ -480,7 +480,7 @@ namespace NTumbleBit.PuzzlePromise
         internal IEnumerable<Transaction> GetSignedTransactions(PuzzleSolution solution, int paymentNumber)
         {
             /*
-               * TODO: I modified this to reflect the change below, please TEST and DEBUG THIS!
+               * TODO[DEBUG]: I modified this to reflect the change below, please TEST and DEBUG THIS!
                * parameter "paymentNumber" indicates which j payment this is.
                * NOTE: In order to solve the puzzle using the "solution", we need the previous solution 
                * to get the signatures.
@@ -529,7 +529,8 @@ namespace NTumbleBit.PuzzlePromise
 
         public Transaction GetSignedTransaction(PuzzleSolution solution, int paymentNumber)
         {
-            var tx = GetSignedTransactions(solution, paymentNumber).FirstOrDefault();
+            // NOTE: the '-1' so that we convert from [1..PaymentsCount] to a 0 indexed counter.
+            var tx = GetSignedTransactions(solution, paymentNumber-1).FirstOrDefault();
             if (tx == null)
                 throw new PuzzleException($"Wrong solution for the puzzle {paymentNumber}");
             return tx;

@@ -204,7 +204,8 @@ namespace NTumbleBit.PuzzleSolver
 		public void AcceptPuzzle()
 		{
             AssertState(SolverClientStates.WaitingPuzzle);
-			InternalState.Puzzle = Parameters.Puzzles[Parameters.CurrentPuzzleNum] ?? throw new ArgumentNullException(nameof(Parameters.CurrentPuzzleNum));
+			// NOTE: -1 because we use it as an index (so we go from 0->PaymentsCount-1)
+			InternalState.Puzzle = Parameters.Puzzles[(Parameters.CurrentPuzzleNum-1)] ?? throw new ArgumentNullException(nameof(Parameters.CurrentPuzzleNum));
 			InternalState.Status = SolverClientStates.WaitingGeneratePuzzles;
 		}
 
@@ -312,13 +313,15 @@ namespace NTumbleBit.PuzzleSolver
 			}.ToScript();
 
 			var escrowCoin = InternalState.EscrowedCoin;
-            // TODO
+            // TODO: This should be (Parameters.CurrentPuzzleNum * Denomination)
 			var txOut = new TxOut(escrowCoin.Amount - offerInformation.Fee, offerScript.WitHash.ScriptPubKey.Hash);
 			var offerCoin = new Coin(escrowCoin.Outpoint, txOut).ToScriptCoin(offerScript);
 
 
 			Transaction tx = new Transaction();
 			tx.Inputs.Add(new TxIn(escrowCoin.Outpoint));
+			// TODO: Here we need to add another outpoint that gives the change back to Alice.
+			// TODO[DESIGN]: Should the change destination be the same one address Alice used as a destination for the redeem or a new one?
 			tx.Outputs.Add(offerCoin.TxOut);
 
 			var escrow = EscrowScriptPubKeyParameters.GetFromCoin(escrowCoin);
@@ -352,6 +355,8 @@ namespace NTumbleBit.PuzzleSolver
 			tx.LockTime = EscrowScriptPubKeyParameters.GetFromCoin(InternalState.EscrowedCoin).LockTime;
 			tx.Inputs.Add(new TxIn());
 			tx.Inputs[0].Sequence = 0;
+			// TODO: OfferRedeemTransaction (T_refund) from T_puzzle should only
+			// send 'J' value to Alice, since T_puzzle sends 'Q-J' to Alice directly.
 			tx.Outputs.Add(new TxOut(InternalState.OfferCoin.Amount, InternalState.RedeemDestination));
 			tx.Inputs[0].ScriptSig = new Script(
 				Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),

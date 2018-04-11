@@ -209,24 +209,19 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 				.Select(c => c.ToScriptCoin(expectedEscrow.ToScript()))
 				.FirstOrDefault();
 			
-			// TODO: Add a new function 'CheckTxValue(int TxValue)' that checks if the (TxValue/Denomination) is an integer and > 0
-			// (we would pass "AlicePaymentsCount" here)
+			// TODO [DESIGN]: Add a new function 'CheckTxValue(int TxValue)' that checks if the (TxValue/Denomination) is an integer and > 0
+			// (we would pass "AlicePaymentsCount" there)
 			if(escrowedCoin == null)
 			{
 				Logs.Tumbler.LogDebug("Could not find escrowed coin");
 				throw new ActionResultException(BadRequest("invalid-transaction"));
 			}
-			/*
-			TODO:
-				- Before this call, it's expected that "Parameters.AlicePaymentsCount" is set to the amount 'Q' that 
-					Alice has specified in the 'request.AlicePaymentsCount'
-				- "Parameters.AlicePaymentsCount = AlicePaymentsCount"
-			 */
+
 			var solverServerSession = new SolverServerSession(Runtime.TumblerKey, Parameters.CreateSolverParamaters());
 			solverServerSession.SetChannelId(request.ChannelId);
 			solverServerSession.ConfigureEscrowedCoin(escrowedCoin, key);
 
-			// TODO: We assume that the payment number is a multiple of the denomination, should I add a check for that?
+			// TODO[DESIGN]: We assume that the payment number is a multiple of the denomination, should I add a check for that?
 			solverServerSession.Parameters.AliceRequestedPaymentsCount = (int) ( (escrowedCoin.Amount - Parameters.Fee) / Parameters.Denomination);
 
 			await Services.BlockExplorerService.TrackAsync(escrowedCoin.ScriptPubKey);
