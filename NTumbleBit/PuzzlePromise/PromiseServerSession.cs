@@ -113,6 +113,11 @@ namespace NTumbleBit.PuzzlePromise
             InternalState.Status = PromiseServerStates.WaitingHashes;
         }
 
+        public override void ConfigureTumblerCashOutAddress(Script tumblerAddress)
+        {
+            base.ConfigureTumblerCashOutAddress(tumblerAddress);
+        }
+
 
         public ServerCommitment[][] SignHashes(SignaturesRequest sigRequest)
         {
@@ -168,11 +173,11 @@ namespace NTumbleBit.PuzzlePromise
             return promises;
         }
 
-        public ServerCommitmentsProof CheckRevelation(ClientRevelation revelation)
+        public ServerCommitmentsProof CheckRevelation(ClientRevelation revelation, FeeRate feeRate)
         {
             /*
               * Steps 7, 9
-              * TODO:
+              * TODO [DONE]:
               * Almost ready, just need to do the following:
               * - Make the function 'getCashOut' to check the validation of RealSet.
               * - BobCashoutDestination should be part of the revelation
@@ -189,6 +194,10 @@ namespace NTumbleBit.PuzzlePromise
             if (variationCount != Parameters.GetTotalRealTransactionsCount())
                 throw new ArgumentNullException($"The revelation should contains {Parameters.GetTotalRealTransactionsCount()} fee variations");
 
+            var bobCashoutDestination = revelation.BobCashoutDestination;
+            if (bobCashoutDestination == null)
+                throw new ArgumentNullException($"The revelation should contains {nameof(bobCashoutDestination)}");
+
             AssertState(PromiseServerStates.WaitingRevelation);
 
             var indexSalt = revelation.IndexesSalt;
@@ -197,23 +206,26 @@ namespace NTumbleBit.PuzzlePromise
                 throw new PuzzleException("Invalid index salt");
             }
 
-            // TODO: Make this a function 'getCashOut' that takes as an input ('Q', 'i', BobCashoutDestination, TumblerCashoutDestination)
-            // And returns the cashout
-            Transaction cashout = new Transaction();
-            // cashout.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
-            // cashout.Inputs[0].ScriptSig = new Script(
-            //     Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
-            //     Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
-            //     Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
-            //     );
-            // cashout.AddOutput(new TxOut(i, cashoutDestination));
-            // cashout.AddOutput(new TxOut(Q - i, TumblerCashoutDestination));
-
-
             var solutions = new PuzzleSolution[Parameters.PaymentsCount][];
             var RealIndexes = Enumerable.Range(0, Parameters.GetTotalTransactionsCountPerLevel()).Where(a => !revelation.FakeIndexes.Contains(a)).ToArray();
             for (int i = 0; i < solutions.Length; i++)
             {
+                Transaction cashout = new Transaction();
+                cashout.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
+                cashout.Inputs[0].ScriptSig = new Script(
+                    Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+                    Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+                    Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
+                );
+                cashout.Inputs[0].Witnessify();
+                /* NOTE: This value should be "Denomination * i" so that it's more adjustable.
+                    - The problem though is that 'Denomination' is not accessible from here,
+                        So maybe that should be added to the promiseParameters?
+                */
+                cashout.AddOutput(new TxOut(Money.Coins( (i+1) * Parameters.Denomination), bobCashoutDestination));
+                cashout.Outputs[0].Value -= feeRate.GetFee(cashout.GetVirtualSize());
+                cashout.AddOutput(InternalState.EscrowedCoin.Amount - Money.Coins((i+1) * Parameters.Denomination), InternalState.TumblerCashOutDestination);
+
                 // Checking valid Transactions
                 for (int j = 0; j < Parameters.RealTransactionCountPerLevel; j++)
                 {

@@ -9,10 +9,11 @@ namespace NTumbleBit.PuzzlePromise
         {
 
         }
-        public ClientRevelation(int[] indexes, uint256 indexesSalt, uint256[][] salts, Money[][] feeVariations)
+        public ClientRevelation(int[] indexes, uint256 indexesSalt, uint256[][] salts, Money[][] feeVariations, Script bobCashoutDestination)
         {
             FakeIndexes = indexes;
             Salts = salts;
+            BobCashoutDestination = bobCashoutDestination;
             FeeVariations = feeVariations;
             IndexesSalt = indexesSalt;
             if (indexes.Length != salts.Length)
@@ -47,6 +48,19 @@ namespace NTumbleBit.PuzzlePromise
             }
         }
 
+        Script _BobCashoutDestination;
+        public Script BobCashoutDestination
+        {
+            get
+            {
+                return _BobCashoutDestination;
+            }
+            set
+            {
+                _BobCashoutDestination = value;
+            }
+        }
+
 
         uint256[][] _Salts;
         public uint256[][] Salts
@@ -78,6 +92,7 @@ namespace NTumbleBit.PuzzlePromise
         {
             stream.ReadWrite(ref _IndexesSalt);
             stream.ReadWrite(ref _FakeIndexes);
+            stream.ReadWrite(ref _BobCashoutDestination);
             stream.ReadWriteC(ref _Salts);
             stream.ReadWriteC(ref _FeeVariations);
         }

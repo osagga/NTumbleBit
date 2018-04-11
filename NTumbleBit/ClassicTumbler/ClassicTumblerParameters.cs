@@ -173,6 +173,19 @@ namespace NTumbleBit.ClassicTumbler
 			}
 		}
 
+		int _AlicePaymentsCount;
+		public int AlicePaymentsCount
+		{
+			get
+			{
+				return _AlicePaymentsCount;
+			}
+			set
+			{
+				_AlicePaymentsCount = value;
+			}
+		}
+
 		int _FakeTransactionCount;
 		public int FakeTransactionCount
 		{
@@ -226,6 +239,7 @@ namespace NTumbleBit.ClassicTumbler
 			stream.ReadWriteC(ref _Denomination);
 			stream.ReadWriteC(ref _Fee);
 			stream.ReadWrite(ref _BobPaymentsCount);
+			stream.ReadWrite(ref _AlicePaymentsCount);
 			stream.ReadWrite(ref _FakePuzzleCount);
 			stream.ReadWrite(ref _RealPuzzleCount);
 			stream.ReadWrite(ref _FakeTransactionCount);

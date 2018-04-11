@@ -162,8 +162,8 @@ namespace NTumbleBit.ClassicTumbler
 		{
 			// TODO: This function builds T_escr from Alice to the Tumbler
 			AssertState(TumblerClientSessionStates.WaitingClientTransaction);
-			// TODO: Change the first parameter HERE, I think we should make it as 'some multiple * Parameters.Denomination'!
-			return new TxOut(Parameters.Denomination + Parameters.Fee, InternalState.ClientEscrow.WitHash.ScriptPubKey.Hash);
+			// TODO [DEBUG]: Change the first parameter HERE, I think we should make it as 'some multiple * Parameters.Denomination'!
+			return new TxOut( (Parameters.AlicePaymentsCount * Parameters.Denomination) + Parameters.Fee, InternalState.ClientEscrow.WitHash.ScriptPubKey.Hash);
 		}
 		
 		public SolverClientSession SetClientSignedTransaction(uint160 channelId, Transaction transaction, Script redeemDestination)
@@ -197,7 +197,7 @@ namespace NTumbleBit.ClassicTumbler
 			InternalState.TumblerEscrowKey = escrow;
 			InternalState.Status = TumblerClientSessionStates.WaitingTumblerEscrow;
 			/*
-			TODO:
+			TODO [DONE]:
 				- Here we need to send to the Tumbler how much 'Q' we are requesting as part of the request.
 					-  We can call the field "RequestedPaymentsCount" (in the 'OpenChannelRequest' class), and we can get this value by:
 						- Either passed to this function as a parameter.

@@ -52,17 +52,23 @@ namespace NTumbleBit.ClassicTumbler.Client
 		{
 			if(state == null)
 				return;
+
+			runtime.TumblerParameters.AlicePaymentsCount = 3;
+			runtime.TumblerParameters.BobPaymentsCount = 3;
+
 			if(state.NegotiationClientState != null)
 			{
 				StartCycle = state.NegotiationClientState.CycleStart;
 				ClientChannelNegotiation = new ClientChannelNegotiation(runtime.TumblerParameters, state.NegotiationClientState);
 			}
-			if(state.PromiseClientState != null)
-				// TODO: We need to pass PaymentsCount for Bob here!
+			if(state.PromiseClientState != null){
 				PromiseClientSession = new PromiseClientSession(runtime.TumblerParameters.CreatePromiseParamaters(), state.PromiseClientState);
-			if(state.SolverClientState != null)
-				// TODO: We need to pass PaymentsCount for Alice here!
+			}	
+			if(state.SolverClientState != null){
 				SolverClientSession = new SolverClientSession(runtime.TumblerParameters.CreateSolverParamaters(), state.SolverClientState);
+			}
+				
+				
 			Status = state.Status;
 		}
 
@@ -153,10 +159,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 		{
 			State s = new State();
 			if(SolverClientSession != null)
-				// TODO: might need to modify this GetInternalState to take into consideration the PaymentCount
 				s.SolverClientState = SolverClientSession.GetInternalState();
 			if(PromiseClientSession != null)
-			// TODO: might need to modify this GetInternalState to take into consideration the PaymentCount
 				s.PromiseClientState = PromiseClientSession.GetInternalState();
 			if(ClientChannelNegotiation != null)
 				s.NegotiationClientState = ClientChannelNegotiation.GetInternalState();
@@ -245,19 +249,12 @@ namespace NTumbleBit.ClassicTumbler.Client
 							alice = Runtime.CreateTumblerClient(cycle.Start, Identity.Alice);
 							var key = alice.RequestTumblerEscrowKey();
 							ClientChannelNegotiation.ReceiveTumblerEscrowKey(key.PubKey, key.KeyIndex);
-
 							
 							/*
-								TODO: The amount of money Alice escrows here depends on the 'Parameters' that were
-								passed to the ClientChannelNegotiation. So if we want Alice to escrow Q BTC, we can 
-								either:
-									- Set a new field in the Paramerters called 'AlicePaymentCount', and then use that
-										When creating the transaction here.
-										- If this is the approach, maybe set AlicePaymentCount from the config file?
-											Along with 'BobPaymentCount'.
-									- We pass the number Q of BTC as an input to the function here
-									- ...
+								TODO [DONE]: The amount of money Alice escrows here depends on the 'Parameters' that were
+								passed to the ClientChannelNegotiation.
 							 */
+							 
 							//Client create the escrow
 							var escrowTxOut = ClientChannelNegotiation.BuildClientEscrowTxOut();
 							feeRate = GetFeeRate();
@@ -351,10 +348,12 @@ namespace NTumbleBit.ClassicTumbler.Client
 							bob = Runtime.CreateTumblerClient(cycle.Start, Identity.Bob);
 							Logs.Client.LogInformation("Begin ask to open the channel...");
 							//Client asks the Tumbler to make a channel
-							// TODO: Before calling this function, it's expected that the InternalState have the value of the requested Payments for Bob
-							int BobRequestedPaymentsCount = 12;
-							var bobEscrowInformation = ClientChannelNegotiation.GetOpenChannelRequest(BobRequestedPaymentsCount);
+							
+							// TODO [DEBUG]: Make sure that the value passed here is actually what we set on top.
+							var bobEscrowInformation = ClientChannelNegotiation.GetOpenChannelRequest(PromiseClientSession.Parameters.PaymentsCount);
+							
 							uint160 channelId = null;
+							
 							try
 							{
 								channelId = bob.BeginOpenChannel(bobEscrowInformation);
@@ -428,17 +427,22 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var proof = bob.CheckRevelation(PromiseClientSession.Id, revelation);
 							var puzzles = PromiseClientSession.CheckCommitmentProof(proof);
 							/*
-							TODO: Need to figure out a way to coordinate the puzzles from Bob to Alice.
+							TODO [DESIGN]: Need to figure out a way to coordinate the puzzles from Bob to Alice.
 								- Should I just send all of them at once from Bob to Alice? Or One by one.
 									- It might be a bit tricky doing the one by one approach given that this function is 
 										run by threads and it's not continuos.
 							 */
-							 // TODO: Define this Puzzles list that simulates Alice receiving all of the puzzles at once (since they are the same person for now)
+							 // TODO [DONE]: Define this Puzzles list that simulates Alice receiving all of the puzzles at once (since they are the same person for now)
                             SolverClientSession.Parameters.Puzzles = puzzles;
+							
+							// TODO [DONE]: This is the number of the puzzle we are currently solving.
+                            SolverClientSession.Parameters.CurrentPuzzleNum = 0;
+							
 							Status = PaymentStateMachineStatus.TumblerChannelCreated;
 						}
 						else if(Status == PaymentStateMachineStatus.TumblerChannelCreated)
 						{
+							// TODO: Need to figure out wether we keep this or change the part about counting bobs based on the outputvalue.
 							CheckTumblerChannelSecured(cycle);
 						}
 						break;
@@ -448,6 +452,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 						//else Tumbler can know deanonymize you based on the timing of first Alice request if the transaction was not confirmed previously
 						if(Status == PaymentStateMachineStatus.TumblerChannelCreated && height == period.Start)
 						{
+							// TODO: Need to figure out wether we keep this or change the part about counting bobs based on the outputvalue.
 							CheckTumblerChannelSecured(cycle);
 						}
 						//No "else if" intended
@@ -456,18 +461,12 @@ namespace NTumbleBit.ClassicTumbler.Client
 							alice = Runtime.CreateTumblerClient(cycle.Start, Identity.Alice);
 							Logs.Client.LogDebug("Starting the puzzle solver protocol...");
 
-                            // TODO: This is the total number of payments 'Q' that Alice has escrowed.
-                            SolverClientSession.Parameters.AlicePaymentCount = 99;
-                            // TODO: This is the number of the puzzle we are currently solving.
-                            SolverClientSession.Parameters.CurrentPuzzleNum = 0;
-
                             // NOTE: This function assumes that Parameters.CurrentPuzzleNum is the puzzle that we need to get the solution for.
                             SolverClientSession.AcceptPuzzle();
 
 							var puzzles = SolverClientSession.GeneratePuzzles();
 							alice.BeginSolvePuzzles(SolverClientSession.Id, puzzles);
 
-                            // ------
 							NeedSave = true;
 							Status = PaymentStateMachineStatus.ProcessingPayment;
 						}

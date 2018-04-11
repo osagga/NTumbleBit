@@ -40,6 +40,17 @@ namespace NTumbleBit.PuzzleSolver
 			get; set;
 		}
 
+		public int CurrentPuzzleNum
+		{
+			get; set;
+		}
+
+		public int AliceRequestedPaymentsCount
+		{
+			get; set;
+		}
+		
+
 		public int GetTotalCount()
 		{
 			return RealPuzzleCount + FakePuzzleCount;

@@ -36,6 +36,13 @@ namespace NTumbleBit
 				set;
 			}
 
+			public Script TumblerCashOutDestination
+			{
+				get;
+				set;
+			}
+			
+
 			/// <summary>
 			/// Identify the channel to the tumbler
 			/// </summary>
@@ -65,6 +72,11 @@ namespace NTumbleBit
 			InternalState.EscrowedCoin = escrowedCoin;
 			InternalState.EscrowKey = escrowKey;
 			InternalState.RedeemDestination = redeemDestination ?? throw new ArgumentNullException(nameof(redeemDestination));
+		}
+
+		public virtual void ConfigureTumblerCashOutAddress(Script tumblerCashoutAddress)
+		{
+            InternalState.TumblerCashOutDestination = tumblerCashoutAddress ?? throw new ArgumentNullException(nameof(tumblerCashoutAddress));
 		}
 
 		public TrustedBroadcastRequest CreateRedeemTransaction(FeeRate feeRate)

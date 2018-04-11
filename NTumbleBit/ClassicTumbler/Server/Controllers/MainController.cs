@@ -198,18 +198,17 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 						- I can also add a new check to see if the (amount - Fee) is a multiple of the Denomination?
 			
 			 */
-			// TODO: Instead of passing 'Denomination' + 'Fee', we only pass 'Fee'
+			// NOTE: We assume that Alice needs at least one payment + TumblerFee
 			var expectedTxOut = new TxOut(Parameters.Denomination + Parameters.Fee, expectedEscrow.ToScript().WitHash.ScriptPubKey.Hash);
 			var escrowedCoin =
 				transaction
 				.Outputs
 				.AsCoins()
-				// TODO: This would change to '>=' instead of '=='
-				.Where(c => c.TxOut.Value == expectedTxOut.Value
+				.Where(c => c.TxOut.Value >= expectedTxOut.Value
 							&& c.TxOut.ScriptPubKey == expectedTxOut.ScriptPubKey)
 				.Select(c => c.ToScriptCoin(expectedEscrow.ToScript()))
 				.FirstOrDefault();
-			// TODO: Here we need to extract AlicePaymentsCount as "transaction.Outputs.AsCoins().FirstOrDefault().TxOut.Value" (Debug this to check)
+			
 			// TODO: Add a new function 'CheckTxValue(int TxValue)' that checks if the (TxValue/Denomination) is an integer and > 0
 			// (we would pass "AlicePaymentsCount" here)
 			if(escrowedCoin == null)
@@ -226,6 +225,10 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			var solverServerSession = new SolverServerSession(Runtime.TumblerKey, Parameters.CreateSolverParamaters());
 			solverServerSession.SetChannelId(request.ChannelId);
 			solverServerSession.ConfigureEscrowedCoin(escrowedCoin, key);
+
+			// TODO: We assume that the payment number is a multiple of the denomination, should I add a check for that?
+			solverServerSession.Parameters.AliceRequestedPaymentsCount = (int) ( (escrowedCoin.Amount - Parameters.Fee) / Parameters.Denomination);
+
 			await Services.BlockExplorerService.TrackAsync(escrowedCoin.ScriptPubKey);
 
 			//Without this one, someone could spam the nonce db by replaying this request with different channelId
@@ -316,18 +319,19 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 				Logs.Tumbler.LogInformation($"Cycle {cycle.Start} Asked to open channel");
 
 				/*
-					TODO:
+					TODO [DONE]:
 					This is the Escrow Transaction for Bob, I should change the value here to be 'Q'
 					instead of Parameters.Denomination. The value Q can be passed along with the request
 					to open the channel for Bob.
 
-					NOTE (Problem maybe?):
+					TODO [DESIGN] (Problem maybe?):
 						Should there be an upper limit to how much (Q) Bob can ask for? He can get all the Tumbler's Money
 						if he wants.
 				*/
-				// TODO: This first parameter should change to 'Q' that Bob specifies.
+				
 				var bobRequestedPaymentCount = request.RequestedPaymentsCount;
-				//TODO: Double check that you can multiply a Money Object with an Int
+				// TODO[DONE]: This first parameter should change to 'Q' that Bob specifies.
+				//TODO [DEBUG]: Double check that you can multiply a Money Object with an Int
 				var txOut = new TxOut(new Money( Parameters.Denomination * bobRequestedPaymentCount), escrow.ToScript().WitHash.ScriptPubKey.Hash);
 				
 				// NOTE: This checks if the Tumbler has enough funds to give 'Q' of the denomination to Bob
@@ -336,6 +340,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 					{
 						try
 						{
+							// NOTE: It seems that the tumbler combines all the Bob's escrows into one transaction.
 							var tx = await task.ConfigureAwait(false);
 							var correlation = new CorrelationId(channelId);
 							Tracker.TransactionCreated(cycle.Start, TransactionType.TumblerEscrow, tx.GetHash(), correlation);
@@ -352,7 +357,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 							Tracker.AddressCreated(cycle.Start, TransactionType.TumblerEscrow, txOut.ScriptPubKey, correlation);
 							var coin = tx.Outputs.AsCoins().First(o => o.ScriptPubKey == txOut.ScriptPubKey && o.TxOut.Value == txOut.Value);
 							/*
-								TODO:
+								TODO [DONE]:
 									- We need to set 'BobPaymentsCount' here before we create the instance of the PromiseServerSession.
 										- One way to do this is by setting:
 											"Parameters.BobPaymentsCount = Q"
@@ -413,6 +418,8 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			AssertNotDuplicateQuery(cycle.Start, channelId);
 			// TODO: Check if we actually want this to be "ConfigureAwait(false)"
 			var cashout = await Services.WalletService.GenerateAddressAsync().ConfigureAwait(false);
+
+			session.ConfigureTumblerCashOutAddress(cashout.ScriptPubKey);
 			// TODO: Check the way I'm getting the 'correlation' here
 			var correlation = new CorrelationId(channelId);
 			Tracker.AddressCreated(cycle.Start, TransactionType.TumblerCashout, cashout.ScriptPubKey, correlation);
@@ -457,12 +464,18 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetPromiseServerSession(cycleId, channelId, CyclePhase.TumblerChannelEstablishment);
 			AssertNotDuplicateQuery(cycleId, channelId);
-
-            // TODO: Bob's key should be part of the revelation, also in the InternalState, we should have the change address for the Tumbler.
-            var proof = session.CheckRevelation(revelation);
+			// TODO: Double check that the fee rate we can calculate here is the same as the client side.
+			var feeRate = GetFeeRate();
+            // TODO [DONE]: Bob's key should be part of the revelation, also in the InternalState, we should have the change address for the Tumbler.
+			var proof = session.CheckRevelation(revelation, feeRate);
 
 			Repository.Save(cycleId, session);
 			return proof;
+		}
+
+		private FeeRate GetFeeRate()
+		{
+			return Services.FeeService.GetFeeRateAsync().GetAwaiter().GetResult();
 		}
 
 		private PromiseServerSession GetPromiseServerSession(int cycleId, uint160 channelId, CyclePhase expectedPhase, bool throws = true)

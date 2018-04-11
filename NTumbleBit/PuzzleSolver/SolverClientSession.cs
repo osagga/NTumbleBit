@@ -204,7 +204,7 @@ namespace NTumbleBit.PuzzleSolver
 		public void AcceptPuzzle()
 		{
             AssertState(SolverClientStates.WaitingPuzzle);
-			InternalState.Puzzle = Parameters.Puzzles[Parameters.CurrentPuzzleNum] ?? throw new ArgumentNullException(nameof(CurrentPuzzleNum));
+			InternalState.Puzzle = Parameters.Puzzles[Parameters.CurrentPuzzleNum] ?? throw new ArgumentNullException(nameof(Parameters.CurrentPuzzleNum));
 			InternalState.Status = SolverClientStates.WaitingGeneratePuzzles;
 		}
 
