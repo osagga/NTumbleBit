@@ -500,9 +500,9 @@ namespace NTumbleBit.ClassicTumbler.Client
 								solutionKeys = alice.FulfillOffer(SolverClientSession.Id, offerSignature);
 								SolverClientSession.CheckSolutions(solutionKeys);
 								var tumblingSolution = SolverClientSession.GetSolution();
-                                // NOTE: Assuems 'CurrentPuzzleNum' as an index value (from 0 -> {i-1})
 								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, SolverClientSession.Parameters.CurrentPuzzleNum);
 								Logs.Client.LogDebug("Got puzzle solution cooperatively from the tumbler");
+								// TODO [DESIGN]: Only switch to 'PuzzleSolutionObtained' if we are done with the puzzles, otherwise, keep on the same state.
 								Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
                                 //NOTE: Bob would cashout only in the cashOut phase, not in this phase.
 								Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.TumblerCashout, correlation, new TrustedBroadcastRequest()
@@ -512,7 +512,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 								});
 								if(Cooperative)
 								{
-                                    // If Alice is coopretive, we make T_cash and give it to the Tumbler
+                                    // If Alice is Cooperative, we make T_cash and give it to the Tumbler
 									try
 									{
 										// No need to await for it, it is a just nice for the tumbler (we don't want the underlying socks connection cut before the escape key is sent)
