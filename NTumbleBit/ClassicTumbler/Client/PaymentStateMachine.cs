@@ -436,7 +436,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 						}
 						else if(Status == PaymentStateMachineStatus.TumblerChannelCreated)
 						{
-							// TODO: Need to figure out wether we keep this or change the part about counting bobs based on the outputvalue.
+							// TODO[DESIGN]: Need to figure out wether we keep this or change the part about counting bobs based on the outputvalue.
 							CheckTumblerChannelSecured(cycle);
 						}
 						break;
