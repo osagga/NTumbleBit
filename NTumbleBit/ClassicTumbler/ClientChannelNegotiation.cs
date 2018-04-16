@@ -136,6 +136,17 @@ namespace NTumbleBit.ClassicTumbler
 			InternalState.BlindedVoucherFactor = factor;
 			InternalState.Status = TumblerClientSessionStates.WaitingTumblerClientTransactionKey;
 		}
+
+		public void ReceivePuzzles(PuzzleValue[] puzzles)
+		{
+			// NOTE: Might need to figure out what state would be appropriate here
+			// AssertState(TumblerClientSessionStates.WaitingVoucher);
+	
+			// InternalState.Puzzles = puzzles;
+
+			// NOTE: Also figure out the output state.
+			// InternalState.Status = TumblerClientSessionStates.WaitingTumblerClientTransactionKey;
+		}
 		
 		/// <summary>
 		/// Receiving the Tumbler escrow key of Client Escrow.
@@ -190,12 +201,15 @@ namespace NTumbleBit.ClassicTumbler
 			InternalState.Status = TumblerClientSessionStates.WaitingGenerateTumblerTransactionKey;
 		}
 
-		public OpenChannelRequest GetOpenChannelRequest(int bobPaymentCount)
+		public OpenChannelRequest GetOpenChannelRequest()
 		{
+			// TODO [DEBUG]: Make sure that "Parameters.BobPaymentsCount" is the same we sat before.
+
 			AssertState(TumblerClientSessionStates.WaitingGenerateTumblerTransactionKey);
 			var escrow = new Key();
 			InternalState.TumblerEscrowKey = escrow;
 			InternalState.Status = TumblerClientSessionStates.WaitingTumblerEscrow;
+			
 			/*
 			TODO [DONE]:
 				- Here we need to send to the Tumbler how much 'Q' we are requesting as part of the request.
@@ -209,7 +223,7 @@ namespace NTumbleBit.ClassicTumbler
 				EscrowKey = escrow.PubKey,
 				Signature = InternalState.SignedVoucher,
 				CycleStart = InternalState.UnsignedVoucher.CycleStart,
-				RequestedPaymentsCount = bobPaymentCount,
+				RequestedPaymentsCount = Parameters.BobPaymentsCount,
 				Nonce = InternalState.UnsignedVoucher.Nonce,
 			};
 			InternalState.SignedVoucher = null;

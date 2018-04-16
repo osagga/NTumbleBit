@@ -244,14 +244,14 @@ namespace NTumbleBit.ClassicTumbler.Client
 			return SignHashesAsync(channelId, sigReq).GetAwaiter().GetResult();
 		}
 
-		public SolutionKey[] FulfillOffer(uint160 channelId, TransactionSignature signature)
+		public SolutionKey[] FulfillOffer(uint160 channelId, TransactionSignature signature, Script aliceCashoutDestination)
 		{
-			return FulfillOfferAsync(cycleId, channelId, signature).GetAwaiter().GetResult();
+			return FulfillOfferAsync(cycleId, channelId, signature, aliceCashoutDestination).GetAwaiter().GetResult();
 		}
 
-		public async Task<SolutionKey[]> FulfillOfferAsync(int cycleId, uint160 channelId, TransactionSignature signature)
+		public async Task<SolutionKey[]> FulfillOfferAsync(int cycleId, uint160 channelId, TransactionSignature signature, Script aliceCashoutDestination)
 		{
-			var result = await SendAsync<ArrayWrapper<SolutionKey>>(HttpMethod.Post, new SignatureWrapper(signature), $"clientchannels/{cycleId}/{channelId}/offer").ConfigureAwait(false);
+			var result = await SendAsync<ArrayWrapper<SolutionKey>>(HttpMethod.Post, new SignatureWrapper(signature, aliceCashoutDestination), $"clientchannels/{cycleId}/{channelId}/offer").ConfigureAwait(false);
 			return result.Elements;
 		}
 

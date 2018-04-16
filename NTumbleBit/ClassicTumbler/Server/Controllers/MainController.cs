@@ -217,12 +217,11 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 				throw new ActionResultException(BadRequest("invalid-transaction"));
 			}
 
+			Parameters.AlicePaymentsCount =  (int) ((escrowedCoin.Amount - Parameters.Fee) / Parameters.Denomination);
+
 			var solverServerSession = new SolverServerSession(Runtime.TumblerKey, Parameters.CreateSolverParamaters());
 			solverServerSession.SetChannelId(request.ChannelId);
 			solverServerSession.ConfigureEscrowedCoin(escrowedCoin, key);
-
-			// TODO[DESIGN]: We assume that the payment number is a multiple of the denomination, should I add a check for that?
-			solverServerSession.Parameters.AliceRequestedPaymentsCount = (int) ( (escrowedCoin.Amount - Parameters.Fee) / Parameters.Denomination);
 
 			await Services.BlockExplorerService.TrackAsync(escrowedCoin.ScriptPubKey);
 
@@ -415,8 +414,8 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			var cashout = await Services.WalletService.GenerateAddressAsync().ConfigureAwait(false);
 
 			session.ConfigureTumblerCashOutAddress(cashout.ScriptPubKey);
-			// TODO: Check the way I'm getting the 'correlation' here
 			var correlation = new CorrelationId(channelId);
+			// TODO: Check if the Type of the address here is ok (it doesn't assume anything)
 			Tracker.AddressCreated(cycle.Start, TransactionType.TumblerCashout, cashout.ScriptPubKey, correlation);
 
 			return new TumblerEscrowData()
@@ -523,7 +522,8 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 
 			QueueWork(() =>
 			{
-				session.BeginSolvePuzzles(puzzles);
+                session.Parameters.CurrentPuzzleNum++;
+                session.BeginSolvePuzzles(puzzles);
 				Repository.Save(cycleId, session);
 			});
 			return Ok();
@@ -591,6 +591,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.PaymentPhase);
 			AssertNotDuplicateQuery(cycleId, channelId);
 			var feeRate = await Services.FeeService.GetFeeRateAsync();
+			// TODO[DONE]: The offerCoin reflects the correct Amount that the Tumbler should receive.
 			var fulfillKey = session.CheckBlindedFactors(blindFactors, feeRate);
 			Repository.Save(cycleId, session);
 			return fulfillKey;
@@ -616,16 +617,21 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			var feeRate = await Services.FeeService.GetFeeRateAsync();
 
 			if(session.Status != SolverServerStates.WaitingFulfillment)
-				throw new InvalidStateException("Invalid state, actual " + session.Status + " while expected is " + SolverServerStates.WaitingFulfillment);
+				throw new InvalidStateException($"Invalid state, actual {session.Status} while expected is {SolverServerStates.WaitingFulfillment}");
 			
 			var cycle = GetCycle(cycleId);
 			var cashout = await Services.WalletService.GenerateAddressAsync();
+			var aliceCashoutDestination = wrapper.CashoutDestination;
 
-			var fulfill = session.FulfillOffer(signature, cashout.ScriptPubKey, feeRate);
+            session.ConfigureAliceCashOutAddress(aliceCashoutDestination);
+
+            var fulfill = session.FulfillOffer(signature, cashout.ScriptPubKey, aliceCashoutDestination, feeRate);
+			
 			fulfill.BroadcastAt = new LockTime(cycle.GetPeriods().Payment.End - 1);
+
 			Repository.Save(cycle.Start, session);
 
-			var signedOffer = session.GetSignedOfferTransaction();
+			var signedOffer = session.GetSignedOfferTransaction(aliceCashoutDestination);
 			signedOffer.BroadcastAt = fulfill.BroadcastAt - 1;
 			var correlation = GetCorrelation(session);
 
@@ -635,12 +641,15 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			await Services.BlockExplorerService.TrackAsync(offerScriptPubKey);
 
 			Tracker.AddressCreated(cycle.Start, TransactionType.ClientOffer, offerScriptPubKey, correlation);
+
+			// TODO: We don't really want to Broadcast anything yet, we want to only broadcast the last Transaction with the highest value.
 			Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientOffer, correlation, signedOffer);
 
 			Tracker.AddressCreated(cycle.Start, TransactionType.ClientFulfill, cashout.ScriptPubKey, correlation);
 
 			if(!Runtime.NoFulFill)
 			{
+				// TODO: We don't really want to Broadcast anything yet, we want to only broadcast the last Transaction with the highest value.
 				Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientFulfill, correlation, fulfill);
 			}
 			return Runtime.Cooperative ? session.GetSolutionKeys() : new SolutionKey[0];

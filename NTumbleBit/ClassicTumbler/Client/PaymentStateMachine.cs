@@ -52,7 +52,9 @@ namespace NTumbleBit.ClassicTumbler.Client
 		{
 			if(state == null)
 				return;
-
+			
+			// TODO: Figure out a better way for Bob and Alice to set these parameters.
+			// NOTE: For testing proposes, we can tweek the values from here.
 			runtime.TumblerParameters.AlicePaymentsCount = 3;
 			runtime.TumblerParameters.BobPaymentsCount = 3;
 
@@ -226,6 +228,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 				switch(phase)
 				{
 					case CyclePhase.Registration:
+					// TODO[READY]
 						if(Status == PaymentStateMachineStatus.New)
 						{
 							bob = Runtime.CreateTumblerClient(cycle.Start, Identity.Bob);
@@ -244,8 +247,10 @@ namespace NTumbleBit.ClassicTumbler.Client
 						}
 						break;
 					case CyclePhase.ClientChannelEstablishment:
+					// TODO[READY]
 						if(Status == PaymentStateMachineStatus.Registered)
 						{
+							// TODO[READY]
 							alice = Runtime.CreateTumblerClient(cycle.Start, Identity.Alice);
 							var key = alice.RequestTumblerEscrowKey();
 							ClientChannelNegotiation.ReceiveTumblerEscrowKey(key.PubKey, key.KeyIndex);
@@ -285,7 +290,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 							Services.BlockExplorerService.TrackAsync(escrowTxOut.ScriptPubKey).GetAwaiter().GetResult();
 
 							// NOTE: This the same as T_refund from the the escrow, this doesn't need to be modified since Alice will take 
-							// All the Q BTCs here, and not give any change to the Tumbler.
+							// All the Escrowed amount, and not give any change to the Tumbler.
 							var redeemTx = SolverClientSession.CreateRedeemTransaction(feeRate);
 							Tracker.AddressCreated(cycle.Start, TransactionType.ClientRedeem, redeemDestination, correlation);
 
@@ -298,6 +303,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 						}
 						else if(Status == PaymentStateMachineStatus.ClientChannelBroadcasted)
 						{
+							// TODO[READY]
 							alice = Runtime.CreateTumblerClient(cycle.Start, Identity.Alice);
 							// NOTE: This function tracks the given Tx from the Blockchain, might need something like that
 							// On the Tumbler side to get the amount of BTCs Alice has escrowed.
@@ -338,13 +344,14 @@ namespace NTumbleBit.ClassicTumbler.Client
 
 						if(Status == PaymentStateMachineStatus.TumblerVoucherObtained)
 						{
-							// NOTE: After this stage, the Tumbler would have ecrowed the requested BTCs
+							// TODO[READY]
+							
+							// NOTE: After this stage, the Tumbler would have escrowed the requested payments
 							bob = Runtime.CreateTumblerClient(cycle.Start, Identity.Bob);
 							Logs.Client.LogInformation("Begin ask to open the channel...");
 							//Client asks the Tumbler to make a channel
 							
-							// TODO [DEBUG]: Make sure that the value passed here is actually what we set on top.
-							var bobEscrowInformation = ClientChannelNegotiation.GetOpenChannelRequest(PromiseClientSession.Parameters.PaymentsCount);
+							var bobEscrowInformation = ClientChannelNegotiation.GetOpenChannelRequest();
 							
 							uint160 channelId = null;
 							
@@ -427,10 +434,21 @@ namespace NTumbleBit.ClassicTumbler.Client
 										run by threads and it's not continuos.
 							 */
 							 // TODO [DONE]: Define this Puzzles list that simulates Alice receiving all of the puzzles at once (since they are the same person for now)
-                            SolverClientSession.Parameters.Puzzles = puzzles;
+                            
+							/*
+								NOTE [DESIGN]:
+									We can either pass the puzzles from Alice to Bob through:
+										- "ClientChannelNegotiation.ReceivePuzzles" funtion that I defined.
+											The function will save the list of puzzles in the internalState of the ClientChannelNegotiation
+											And then in AcceptPuzzle (from the ClientSolver), we can pass the index of the puzzle and get
+											the corresponding puzzle from this internal state.
+										- The other approach is that we can just save the list of puzzles internally in the SolverClientSession.Parameters
+											And then AcceptPuzzle will internally refrence this list with the CurrentPuzzleNum.
 							
-							// TODO [DONE]: This is the number of the puzzle we are currently solving.
-                            SolverClientSession.Parameters.CurrentPuzzleNum = 1;
+							 */
+							
+							SolverClientSession.Parameters.Puzzles = puzzles;
+							// ClientChannelNegotiation.ReceivePuzzles(puzzles);
 							
 							Status = PaymentStateMachineStatus.TumblerChannelCreated;
 						}
@@ -446,19 +464,47 @@ namespace NTumbleBit.ClassicTumbler.Client
 						//else Tumbler can know deanonymize you based on the timing of first Alice request if the transaction was not confirmed previously
 						if(Status == PaymentStateMachineStatus.TumblerChannelCreated && height == period.Start)
 						{
-							// TODO: Need to figure out wether we keep this or change the part about counting bobs based on the outputvalue.
+							// TODO[DESIGN]: Need to figure out wether we keep this or change the part about counting bobs based on the outputvalue.
 							CheckTumblerChannelSecured(cycle);
 						}
 						//No "else if" intended
 						if(Status == PaymentStateMachineStatus.TumblerChannelSecured)
 						{
+							// Start of a puzzle solving session.
+							/*
+							NOTE:
+								- The logic here is that, every call to "update" with the state "TumblerChannelSecured" will solve
+									a new puzzle from the stored puzzles we got from Bob (incrementally).
+								- Alice can only exit or terminate the solver protocol through:
+									- Reaching the max number of puzzles she can solve given "AliceRequestedPaymentsCount"
+										- In this case, the "Status" will change to "PuzzleSolutionObtained"
+											- [DESIGN] I'm not sure if I should introduce a new Status for this case.
+									- Willingly, Alice decides to stop solving puzzles as long as she didn't reach the limit.
+										- In this case, the "Status" will change to "PuzzleSolutionObtained" and any further calls 
+											to update will just skip solving a new puzzle and wait till the cashout phase.
+									- The Tumbler is Uncooperative (didn't give the solutions back).
+										- In this case, the "Status" will change to "UncooperativeTumbler" and we would just terminate
+											the current puzzle solving on the i_th puzzle and wait till we get to the cashout phase and
+											Try to acquire the solution from the T_solve from the Blockchain to the i_th puzzle.
+												- Otherwise, we would just cashout the 
+								
+							 */
+							
+							// TODO [DONE]: This is the number of the puzzle we are currently solving.
+                            SolverClientSession.Parameters.CurrentPuzzleNum = 1;
+
 							alice = Runtime.CreateTumblerClient(cycle.Start, Identity.Alice);
 							Logs.Client.LogDebug("Starting the puzzle solver protocol...");
+							// TODO: We might need to manually set the InternalState of the SolverClient to "WaitingPuzzle"
+							// so that we can solve future puzzles without violating assertions in the client.
 
-                            // NOTE: This function assumes that Parameters.CurrentPuzzleNum is the puzzle that we need to get the solution for.
+                            // NOTE: This function assumes that Parameters.CurrentPuzzleNum is the puzzle that we need to get the solution for (Related to the deign note above).
                             SolverClientSession.AcceptPuzzle();
 
 							var puzzles = SolverClientSession.GeneratePuzzles();
+							// TODO[DONE]: The tumbler should start the counter here.
+							// Note: Every call to this function will be considered as a new puzzle solving request, and will cost one
+							// more payment than the previous one.
 							alice.BeginSolvePuzzles(SolverClientSession.Id, puzzles);
 
 							NeedSave = true;
@@ -479,15 +525,22 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var solutionKeys = alice.CheckRevelation(SolverClientSession.Id, revelation2);
 							var blindFactors = SolverClientSession.GetBlindFactors(solutionKeys);
 							var offerInformation = alice.CheckBlindFactors(SolverClientSession.Id, blindFactors);
-                            
+
+							// TODO: Not sure if this is how we can generate a new address that Alice can receive the change back on.
+							// NOTE: WARNING, the way I'm using "GetNewDestination" is the same on Bob's side, maybe this could link
+							// Alice to Bob, I'm not sure.
+							var aliceCashoutDestination = DestinationWallet.GetNewDestination();
+							Tracker.AddressCreated(cycle.Start, TransactionType.TumblerCashout, aliceCashoutDestination, correlation);
+							
 							// NOTE: It seems like this creates and signs T_puzzle
-							// TODO: Finish some work inside.
-							var offerSignature = SolverClientSession.SignOffer(offerInformation);
+							// TODO[DESIGN]: Solve a design decision inside.
+							var offerSignature = SolverClientSession.SignOffer(offerInformation, aliceCashoutDestination);
 							
 							// NOTE: It seems like this function creates the redeem transaction for T_puzzle
-							// TODO: finish some work inside.
+							// TODO[DONE]: finish some work inside.
 							var offerRedeem = SolverClientSession.CreateOfferRedeemTransaction(feeRate);
 							
+							// TODO: Might wanna rephrase this log message.
 							Logs.Client.LogDebug("Puzzle solver protocol ended...");
 
 							//May need to find solution in the fulfillment transaction
@@ -497,7 +550,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 							
 							try
 							{
-								solutionKeys = alice.FulfillOffer(SolverClientSession.Id, offerSignature);
+								solutionKeys = alice.FulfillOffer(SolverClientSession.Id, offerSignature, aliceCashoutDestination);
 								SolverClientSession.CheckSolutions(solutionKeys);
 								var tumblingSolution = SolverClientSession.GetSolution();
 								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, SolverClientSession.Parameters.CurrentPuzzleNum);
@@ -505,6 +558,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 								// TODO [DESIGN]: Only switch to 'PuzzleSolutionObtained' if we are done with the puzzles, otherwise, keep on the same state.
 								Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
                                 //NOTE: Bob would cashout only in the cashOut phase, not in this phase.
+								
 								Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.TumblerCashout, correlation, new TrustedBroadcastRequest()
 								{
 									BroadcastAt = cycle.GetPeriods().ClientCashout.Start,
@@ -516,7 +570,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 									try
 									{
 										// No need to await for it, it is a just nice for the tumbler (we don't want the underlying socks connection cut before the escape key is sent)
-										var signature = SolverClientSession.SignEscape();
+                                        // TODO: Figure out the last parameter here, the Tumbler probably have to provide a cashout address with sending back the offer information
+										var signature = SolverClientSession.SignEscape(feeRate, aliceCashoutDestination, new Key().ScriptPubKey);
 										alice.GiveEscapeKeyAsync(SolverClientSession.Id, signature).GetAwaiter().GetResult();
 									}
 									catch(Exception ex) { Logs.Client.LogDebug(new EventId(), ex, "Exception while giving the escape key"); }
@@ -545,7 +600,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 								NeedSave = true;
 								Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
 								var tumblingSolution = SolverClientSession.GetSolution();
-								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, 0);
+								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, SolverClientSession.Parameters.CurrentPuzzleNum);
 								Tracker.TransactionCreated(cycle.Start, TransactionType.TumblerCashout, transaction.GetHash(), correlation);
 								Services.BroadcastService.BroadcastAsync(transaction).GetAwaiter().GetResult();
 							}

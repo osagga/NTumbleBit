@@ -158,7 +158,7 @@ namespace NTumbleBit.PuzzlePromise
                     // Create the padded solution with the following format "i||j||epsilon_{i,j}||epsilon_{i-1,j}|| . . . , epsilon_{0,j}"
                     var paddedSolutions = new PuzzleSolution(Utils.Combine(NBitcoin.Utils.ToBytes((uint)i, true), NBitcoin.Utils.ToBytes((uint)j, true), previousSolutions[j]));
                     // Hash and XOR the padded solution with the signature we have.
-                    var promise = XORKey.XOR(paddedSolutions._Value.ToByteArrayUnsigned(), ecdsaDER); // This function needs to be approved "XOR".
+                    var promise = new XORKey(paddedSolutions, false).XOR(ecdsaDER);
                     PuzzleSolution solution = new PuzzleSolution(key); // Epsilon
                     // Encrypt the epsilon value using RSA
                     var puzzle = Parameters.ServerKey.GeneratePuzzle(ref solution);
@@ -222,9 +222,9 @@ namespace NTumbleBit.PuzzlePromise
                     - The problem though is that 'Denomination' is not accessible from here,
                         So maybe that should be added to the promiseParameters?
                 */
-                cashout.AddOutput(new TxOut(Money.Coins( (i+1) * Parameters.Denomination), bobCashoutDestination));
+                cashout.AddOutput(new TxOut( (i+1) * Parameters.Denomination, bobCashoutDestination));
                 cashout.Outputs[0].Value -= feeRate.GetFee(cashout.GetVirtualSize());
-                cashout.AddOutput(InternalState.EscrowedCoin.Amount - Money.Coins((i+1) * Parameters.Denomination), InternalState.TumblerCashOutDestination);
+                cashout.AddOutput(InternalState.EscrowedCoin.Amount - ((i+1) * Parameters.Denomination), InternalState.TumblerCashOutDestination);
 
                 // Checking valid Transactions
                 for (int j = 0; j < Parameters.RealTransactionCountPerLevel; j++)

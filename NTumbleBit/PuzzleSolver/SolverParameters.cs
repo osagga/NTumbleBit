@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using NBitcoin;
 
 namespace NTumbleBit.PuzzleSolver
 {
@@ -31,6 +32,11 @@ namespace NTumbleBit.PuzzleSolver
 		}
 
 		public PuzzleValue[] Puzzles
+		{
+			get; set;
+		}
+		
+		public Money Denomination
 		{
 			get; set;
 		}

@@ -110,6 +110,13 @@ namespace NTumbleBit.PuzzlePromise
                 get;
                 set;
             }
+
+            public byte[][][] Epsilons //2D
+            {
+                get;
+                set;
+            }
+
             public uint256[][] Salts //2D
             {
                 get;
@@ -146,6 +153,10 @@ namespace NTumbleBit.PuzzlePromise
             {
                 get; set;
             }
+            public int[] RealColumns // This should be 1D
+            {
+                get; set;
+            }
             public BlindFactor[] BlindFactors // 1D, Now we have a list of 'r' values
             {
                 get;
@@ -156,7 +167,7 @@ namespace NTumbleBit.PuzzlePromise
         private readonly PromiseParameters _Parameters;
         private HashBase[][] _Hashes; // The list of Hashes (Beta_i in the paper)
         private byte[][][] _Epsilons; // The list of Hashes (Beta_i in the paper)
-        private Transaction[] _cashOut; // The list of cashouts for each transaction
+        private Transaction[] _cashouts; // The list of cashouts for each transaction
 
         public PromiseClientSession(PromiseParameters parameters, State state) : this(parameters)
         {
@@ -166,9 +177,13 @@ namespace NTumbleBit.PuzzlePromise
             if (InternalState.Commitments != null)
             {
                 _Hashes = new HashBase[parameters.PaymentsCount][];
+                _cashouts = new Transaction[parameters.PaymentsCount];
+                _Epsilons = new byte[parameters.PaymentsCount][][];
                 for (int i = 0; i < _Hashes.Length; i++)
                 {
                     _Hashes[i] = new HashBase[InternalState.Commitments[i].Length];
+                    _Epsilons[i] = new byte[InternalState.Commitments[i].Length][];
+                    _cashouts[i] = InternalState.Cashouts[i];
                     int fakeJ = 0, realJ = 0;
                     for (int j = 0; j < _Hashes[i].Length; j++)
                     {
@@ -182,8 +197,6 @@ namespace NTumbleBit.PuzzlePromise
                         }
                         else
                         {
-                            // TODO: Figure out a way to generate this Cashout dynamically on the given 'i' BTCs
-                            // OR we can save internally a 2D array of the Cashouts and just refrence the needed one from here.
                             hash = new RealHash(InternalState.Cashouts[i], InternalState.EscrowedCoin)
                             {
                                 FeeVariation = InternalState.FeeVariations[i][realJ++]
@@ -192,6 +205,7 @@ namespace NTumbleBit.PuzzlePromise
                         hash.Index = j;
                         hash.Commitment = InternalState.Commitments[i][j];
                         _Hashes[i][j] = hash;
+                        _Epsilons[i][j] = InternalState.Epsilons[i][j];
                     }
                 }
             }
@@ -203,16 +217,22 @@ namespace NTumbleBit.PuzzlePromise
             state.Salts = null;
             state.FeeVariations = null;
             state.Commitments = null;
+            state.Cashouts = null;
+            state.Epsilons = null;
             if (_Hashes != null)
             {
                 var commitments = new ServerCommitment[_Hashes.Length][];
+                var epsilons = new byte[_Hashes.Length][][];
                 var salts = new uint256[_Hashes.Length][];
+                var cashouts = new Transaction[_Hashes.Length];
                 var feeVariations = new Money[_Hashes.Length][];
                 for (int i = 0; i < _Hashes.Length; i++)
                 {
                     salts[i] = new uint256[_Parameters.FakeTransactionCountPerLevel];
                     feeVariations[i] = new Money[_Parameters.RealTransactionCountPerLevel];
                     commitments[i] = new ServerCommitment[_Hashes[i].Length];
+                    epsilons[i] = new byte[_Hashes[i].Length][];
+                    cashouts[i] = _cashouts[i];
                     int fakeJ = 0, realJ = 0;
                     for (int j = 0; j < _Hashes[i].Length; j++)
                     {
@@ -223,11 +243,14 @@ namespace NTumbleBit.PuzzlePromise
                             feeVariations[i][realJ++] = real.FeeVariation;
 
                         commitments[i][j] = _Hashes[i][j].Commitment;
+                        epsilons[i][j] = _Epsilons[i][j];
                     }
                 }
                 state.Salts = salts;
                 state.FeeVariations = feeVariations;
                 state.Commitments = commitments;
+                state.Cashouts = cashouts;
+                state.Epsilons = epsilons;
             }
             return state;
         }
@@ -265,6 +288,8 @@ namespace NTumbleBit.PuzzlePromise
             // The exact value for the fee. (Maybe this can be deterministically calculated on the server side? I'm not sure)
 
             HashBase[][] hashes = new HashBase[_Parameters.PaymentsCount][]; //2D
+            _cashouts = new Transaction[_Parameters.PaymentsCount];
+            _Epsilons = new byte[_Parameters.PaymentsCount][][];
             for (int i = 0; i < _Parameters.PaymentsCount; i++)
             {
                 Transaction cashout = new Transaction();
@@ -279,11 +304,12 @@ namespace NTumbleBit.PuzzlePromise
                     - The problem though is that 'Denomination' is not accessible from here,
                         So maybe that should be added to the promiseParameters?
                 */
-                cashout.AddOutput(new TxOut(Money.Coins( (i+1) * Parameters.Denomination), cashoutDestination));
+                cashout.AddOutput(new TxOut( (i+1) * Parameters.Denomination, cashoutDestination));
                 cashout.Outputs[0].Value -= feeRate.GetFee(cashout.GetVirtualSize());
-                cashout.AddOutput(InternalState.EscrowedCoin.Amount - Money.Coins((i+1) * Parameters.Denomination), InternalState.TumblerCashOutDestination);
+                cashout.AddOutput(InternalState.EscrowedCoin.Amount - ((i+1) * Parameters.Denomination), InternalState.TumblerCashoutDestination);
 
-                _cashOut[i] = cashout;
+                _cashouts[i] = cashout;
+                _Epsilons[i] = new byte[_Parameters.GetTotalTransactionsCountPerLevel()][];
                 hashes[i] = new HashBase[_Parameters.GetTotalTransactionsCountPerLevel()];
                 for (int j = 0; j < Parameters.RealTransactionCountPerLevel; j++)
                 { 
@@ -329,7 +355,7 @@ namespace NTumbleBit.PuzzlePromise
                 Add the cashOutDestination to the InternalState so that it can be later sent through the reveal step.
                 "InternalState.cashOutDestination = cashOutDestination;"
              */
-            InternalState.Cashouts = _cashOut;
+            InternalState.Cashouts = _cashouts;
             InternalState.ClientCashoutDestination = cashoutDestination;
             InternalState.Status = PromiseClientStates.WaitingCommitments;
             InternalState.FakeColumns = fakeIndices;
@@ -438,6 +464,7 @@ namespace NTumbleBit.PuzzlePromise
                 }
             }
             _Hashes = _Hashes.Select(a => a.OfType<RealHash>().ToArray()).ToArray(); // we do not need the fake one anymore
+            InternalState.RealColumns = Enumerable.Range(0, Parameters.GetTotalTransactionsCountPerLevel()).Where(a => !InternalState.FakeColumns.Contains(a)).ToArray();
             InternalState.FakeColumns = null;
             InternalState.Quotients = proof.Quotients;
 
@@ -458,14 +485,12 @@ namespace NTumbleBit.PuzzlePromise
 
         private bool IsValidSignature(PuzzleSolution solution, HashBase hash, out ECDSASignature signature)
         {
-            // NOTE: The XOR operation below hashes the first input by default. So Whatever is passed there will be hased first then XORed.
             signature = null;
             var escrow = EscrowScriptPubKeyParameters.GetFromCoin(InternalState.EscrowedCoin);
             try
             {
-                var key = solution._Value.ToByteArrayUnsigned();
-                var sig = XORKey.XOR(key, hash.Commitment.Promise);
-                signature = new ECDSASignature(sig);
+                var key = new XORKey(solution, false);
+                signature = new ECDSASignature(key.XOR(hash.Commitment.Promise));
                 var ok = escrow.Initiator.Verify(hash.GetHash(), signature);
                 if (!ok)
                     signature = null;
@@ -493,7 +518,11 @@ namespace NTumbleBit.PuzzlePromise
                 throw new ArgumentNullException(nameof(solution));
             AssertState(PromiseClientStates.Completed);
             solution = solution.Unblind(Parameters.ServerKey, InternalState.BlindFactors[paymentNumber]);
+
             BigInteger cumul = solution._Value;
+
+            var RealIndexes = InternalState.RealColumns;
+
             var hashes = _Hashes[paymentNumber].OfType<RealHash>().ToArray();
             for (int i = 0; i < Parameters.RealTransactionCountPerLevel; i++)
             {
@@ -502,15 +531,14 @@ namespace NTumbleBit.PuzzlePromise
                 var quotient = i == 0 ? BigInteger.One : InternalState.Quotients[paymentNumber][i - 1]._Value;
                 
                 cumul = cumul.Multiply(quotient).Mod(Parameters.ServerKey._Key.Modulus); // Epsilon_{paymentNumber}{i}
-                _Epsilons[paymentNumber][i] = cumul.ToByteArrayUnsigned();
-                
-                var prevEpsilons = getPrevEpsilons(paymentNumber, i);
-                var key = Utils.Combine(NBitcoin.Utils.ToBytes((uint)paymentNumber, true), NBitcoin.Utils.ToBytes((uint)i, true), prevEpsilons);
 
                 // TODO: Need to fix how the solution is recovered given how we need the previous solutions to get the current one.
-                
-                solution = new PuzzleSolution(key);
-                
+
+                _Epsilons[paymentNumber][i] = new PuzzleSolution(cumul).ToBytes();
+                var prevEpsilons = getPrevEpsilons(paymentNumber, i);
+
+                solution = new PuzzleSolution(Utils.Combine(NBitcoin.Utils.ToBytes((uint)paymentNumber, true), NBitcoin.Utils.ToBytes((uint)RealIndexes[i], true), prevEpsilons));
+
                 if (!IsValidSignature(solution, hash, out ECDSASignature tumblerSig))
                     continue;
                 

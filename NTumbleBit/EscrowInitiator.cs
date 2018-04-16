@@ -30,6 +30,7 @@ namespace NTumbleBit
 				get;
 				set;
 			}
+
 			public Script RedeemDestination
 			{
 				get;

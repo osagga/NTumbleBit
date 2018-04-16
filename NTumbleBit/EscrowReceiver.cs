@@ -32,12 +32,18 @@ namespace NTumbleBit
 				set;
 			}
 			// NOTE: This field is used to store the address in which the Tumbler wants to receive its change at.
-			public Script TumblerCashOutDestination
+			public Script TumblerCashoutDestination
 			{
 				get;
 				set;
 			}
-		}
+            // NOTE: This field is used to store the address in which Alice wants to receive its change at.
+            public Script AliceCashoutDestination
+            {
+                get;
+                set;
+            }
+        }
 
 		protected State InternalState
 		{
@@ -64,10 +70,15 @@ namespace NTumbleBit
 
 		public virtual void ConfigureTumblerCashOutAddress(Script tumblerCashoutAddress)
 		{
-            InternalState.TumblerCashOutDestination = tumblerCashoutAddress ?? throw new ArgumentNullException(nameof(tumblerCashoutAddress));
+            InternalState.TumblerCashoutDestination = tumblerCashoutAddress ?? throw new ArgumentNullException(nameof(tumblerCashoutAddress));
 		}
 
-		public ScriptCoin EscrowedCoin
+        public virtual void ConfigureAliceCashOutAddress(Script aliceCashoutAddress)
+        {
+            InternalState.AliceCashoutDestination = aliceCashoutAddress ?? throw new ArgumentNullException(nameof(aliceCashoutAddress));
+        }
+
+        public ScriptCoin EscrowedCoin
 		{
 			get
 			{

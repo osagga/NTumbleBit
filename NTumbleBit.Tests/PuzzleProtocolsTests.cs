@@ -167,18 +167,20 @@ namespace NTumbleBit.Tests
 			Key serverEscrow = new Key();
 			Key clientEscrow = new Key();
 			int paymentCount = 5;
+            var denominataion = Money.Coins(1.0m);
             var parameters = new PromiseParameters(key.PubKey)
             {
 				// NOTE: It's expected that the PromiseParameters has a parameter "PaymentsCount" to indicate how many Payments we make
                 FakeTransactionCountPerLevel = 5,
                 RealTransactionCountPerLevel = 5,
+                Denomination = denominataion,
                 PaymentsCount = paymentCount
             };
 
 			var client = new PromiseClientSession(parameters);
 			var server = new PromiseServerSession(parameters);
 
-			var coin = CreateEscrowCoin(serverEscrow.PubKey, clientEscrow.PubKey, paymentCount);
+			var coin = CreateEscrowCoin(serverEscrow.PubKey, clientEscrow.PubKey, paymentCount, client.Parameters.Denomination);
 
 			client.ConfigureEscrowedCoin(coin, clientEscrow);
 			SignaturesRequest request = client.CreateSignatureRequest(clientEscrow.PubKey.Hash, FeeRate);
@@ -194,7 +196,7 @@ namespace NTumbleBit.Tests
 			RoundTrip(ref client, parameters);
 			RoundTrip(ref revelation);
 
-			ServerCommitmentsProof proof = server.CheckRevelation(revelation);
+			ServerCommitmentsProof proof = server.CheckRevelation(revelation, FeeRate);
 			RoundTrip(ref server, parameters);
 			RoundTrip(ref proof);
 
@@ -205,9 +207,7 @@ namespace NTumbleBit.Tests
 
             for (int i = 0; i < puzzlesToSolve.Length; i++)
             {
-                // Doesn't work for now! Need to figure how Bob will be spending the puzzles.
                 var solution = key.SolvePuzzle(puzzlesToSolve[i]);
-                // I'm not sure if GetSignedTransactions should handle all payments or only one payment at a time.
                 var transactions = client.GetSignedTransactions(solution, i).ToArray();
                 RoundTrip(ref client, parameters);
                 Assert.True(transactions.Length == parameters.RealTransactionCountPerLevel);
@@ -231,13 +231,13 @@ namespace NTumbleBit.Tests
 			Assert.True(bb.Verify(resigned));
 		}
 
-		private ScriptCoin CreateEscrowCoin(PubKey initiator, PubKey receiver, int paymentCount)
+		private ScriptCoin CreateEscrowCoin(PubKey initiator, PubKey receiver, int paymentCount, Money denomination)
 		{
 			var redeem = new EscrowScriptPubKeyParameters(initiator, receiver, new LockTime(10)).ToScript();
 			var scriptCoin = new Coin(new OutPoint(new uint256(RandomUtils.GetBytes(32)), 0),
 				new TxOut
 				{
-					Value = Money.Coins((decimal)paymentCount),
+					Value = denomination * paymentCount,
 					ScriptPubKey = redeem.WitHash.ScriptPubKey.Hash.ScriptPubKey
 				}).ToScriptCoin(redeem);
 			return scriptCoin;
@@ -247,14 +247,16 @@ namespace NTumbleBit.Tests
 		public void TestPuzzleSolver()
 		{
 			RsaKey key = TestKeys.Default;
-			PuzzleSolution expectedSolution = null;
-			Puzzle puzzle = key.PubKey.GeneratePuzzle(ref expectedSolution);
 
+			var alicePaymentsCount = 1;
+            var denomination = Money.Coins(1.0m);
 			var parameters = new SolverParameters
 			{
 				FakePuzzleCount = 50,
 				RealPuzzleCount = 10,
-				ServerKey = key.PubKey
+				AliceRequestedPaymentsCount = alicePaymentsCount,
+                Denomination = denomination,
+                ServerKey = key.PubKey
 			};
 			SolverClientSession client = new SolverClientSession(parameters);
 			SolverServerSession server = new SolverServerSession(key, parameters);
@@ -262,82 +264,107 @@ namespace NTumbleBit.Tests
 			var clientEscrow = new Key();
 			var serverEscrow = new Key();
 
-			var escrow = CreateEscrowCoin(clientEscrow.PubKey, serverEscrow.PubKey);
-			var redeemDestination = new Key().ScriptPubKey;
+            var escrow = CreateEscrowCoin(clientEscrow.PubKey, serverEscrow.PubKey, client.Parameters.AliceRequestedPaymentsCount, client.Parameters.Denomination);
+
+            var redeemDestination = new Key().ScriptPubKey;
 			client.ConfigureEscrowedCoin(uint160.Zero, escrow, clientEscrow, redeemDestination);
-			client.AcceptPuzzle(puzzle.PuzzleValue);
-			RoundTrip(ref client, parameters);
-			Assert.True(client.GetInternalState().RedeemDestination == redeemDestination);
-			PuzzleValue[] puzzles = client.GeneratePuzzles();
-			RoundTrip(ref client, parameters);
-			RoundTrip(ref puzzles);
+            server.ConfigureEscrowedCoin(escrow, serverEscrow);
 
-			server.ConfigureEscrowedCoin(escrow, serverEscrow);
-			var commitments = server.SolvePuzzles(puzzles);
-			RoundTrip(ref server, parameters, key);
-			RoundTrip(ref commitments);
+            var promise_puzzles = new PuzzleValue[client.Parameters.AliceRequestedPaymentsCount];
+			var puzzlesSolutions = new PuzzleSolution[client.Parameters.AliceRequestedPaymentsCount];
 
-			var revelation = client.Reveal(commitments);
-			RoundTrip(ref client, parameters);
-			RoundTrip(ref revelation);
+			for (int i = 0; i < promise_puzzles.Length; i++){
+				promise_puzzles[i] = key.PubKey.GeneratePuzzle(ref puzzlesSolutions[i]).PuzzleValue;
+			}
 
-			SolutionKey[] fakePuzzleKeys = server.CheckRevelation(revelation);
-			RoundTrip(ref server, parameters, key);
-			RoundTrip(ref fakePuzzleKeys);
+			client.Parameters.Puzzles = promise_puzzles;
+			
+			for (int currentPuzzle = 0; currentPuzzle < client.Parameters.AliceRequestedPaymentsCount; currentPuzzle++)
+			{
+                client.Parameters.CurrentPuzzleNum++;
 
+                client.AcceptPuzzle();
+				RoundTrip(ref client, parameters);
 
-			BlindFactor[] blindFactors = client.GetBlindFactors(fakePuzzleKeys);
-			RoundTrip(ref client, parameters);
-			RoundTrip(ref blindFactors);
+				Assert.True(client.GetInternalState().RedeemDestination == redeemDestination);
 
-			var offerInformation = server.CheckBlindedFactors(blindFactors, FeeRate);
-			RoundTrip(ref server, parameters, key);
+				PuzzleValue[] puzzles = client.GeneratePuzzles();
+				RoundTrip(ref client, parameters);
+				RoundTrip(ref puzzles);
 
-			var clientOfferSig = client.SignOffer(offerInformation);
+				var commitments = server.SolvePuzzles(puzzles);
+				RoundTrip(ref server, parameters, key);
+				RoundTrip(ref commitments);
 
+				var revelation = client.Reveal(commitments);
+				RoundTrip(ref client, parameters);
+				RoundTrip(ref revelation);
 
-			//Verify if the scripts are correctly created
-			var fulfill = server.FulfillOffer(clientOfferSig, new Key().ScriptPubKey, FeeRate);			
-			var offerRedeem = client.CreateOfferRedeemTransaction(FeeRate);
-
-			var offerTransaction = server.GetSignedOfferTransaction();
-			var offerCoin = offerTransaction.Transaction.Outputs.AsCoins().First();
-			var resigned = offerTransaction.ReSign(client.EscrowedCoin);
-
-			TransactionBuilder txBuilder = new TransactionBuilder();
-			txBuilder.AddCoins(client.EscrowedCoin);
-			Assert.True(txBuilder.Verify(resigned));
-
-            resigned = fulfill.ReSign(offerCoin, out bool cached);
-            Assert.False(cached);
-			txBuilder = new TransactionBuilder();
-			txBuilder.AddCoins(offerCoin);
-			Assert.True(txBuilder.Verify(resigned));
-
-			//Test again to see if cached signature works well
-			resigned = fulfill.ReSign(offerCoin, out cached);
-			Assert.True(cached);
-			Assert.True(txBuilder.Verify(resigned));
-
-			var offerRedeemTx = offerRedeem.ReSign(offerCoin);
-			txBuilder = new TransactionBuilder();
-			txBuilder.AddCoins(offerCoin);
-			Assert.True(txBuilder.Verify(offerRedeemTx));
+				SolutionKey[] fakePuzzleKeys = server.CheckRevelation(revelation);
+				RoundTrip(ref server, parameters, key);
+				RoundTrip(ref fakePuzzleKeys);
 
 
-			client.CheckSolutions(fulfill.Transaction);
-			RoundTrip(ref client, parameters);
+				BlindFactor[] blindFactors = client.GetBlindFactors(fakePuzzleKeys);
+				RoundTrip(ref client, parameters);
+				RoundTrip(ref blindFactors);
 
-			var clientEscapeSignature = client.SignEscape();
-			var escapeTransaction = server.GetSignedEscapeTransaction(clientEscapeSignature, FeeRate, new Key().ScriptPubKey);
+				var offerInformation = server.CheckBlindedFactors(blindFactors, FeeRate);
+				RoundTrip(ref server, parameters, key);
 
-			txBuilder = new TransactionBuilder();
-			txBuilder.AddCoins(client.EscrowedCoin);
-			Assert.True(txBuilder.Verify(escapeTransaction));
+				var clientOfferSig = client.SignOffer(offerInformation, clientEscrow.ScriptPubKey);
 
-			var solution = client.GetSolution();
-			RoundTrip(ref client, parameters);
-			Assert.True(solution == expectedSolution);
+				//Verify if the scripts are correctly created
+				var fulfill = server.FulfillOffer(clientOfferSig, new Key().ScriptPubKey, clientEscrow.ScriptPubKey, FeeRate);			
+				var offerRedeem = client.CreateOfferRedeemTransaction(FeeRate);
+
+				var offerTransaction = server.GetSignedOfferTransaction(clientEscrow.ScriptPubKey);
+                server.ConfigureAliceCashOutAddress(clientEscrow.ScriptPubKey);
+				var offerCoin = offerTransaction.Transaction.Outputs.AsCoins().First();
+				var resigned = offerTransaction.ReSign(client.EscrowedCoin);
+
+				TransactionBuilder txBuilder = new TransactionBuilder();
+				txBuilder.AddCoins(client.EscrowedCoin);
+                // TODO: This fails on the last iteration of this test
+                // When the change to Alice is 0 (this might break something since we have an output with Zero)
+				Assert.True(txBuilder.Verify(resigned));
+
+				resigned = fulfill.ReSign(offerCoin, out bool cached);
+				Assert.False(cached);
+				txBuilder = new TransactionBuilder();
+				txBuilder.AddCoins(offerCoin);
+				Assert.True(txBuilder.Verify(resigned));
+
+				//Test again to see if cached signature works well
+				resigned = fulfill.ReSign(offerCoin, out cached);
+				Assert.True(cached);
+				Assert.True(txBuilder.Verify(resigned));
+
+				var offerRedeemTx = offerRedeem.ReSign(offerCoin);
+				txBuilder = new TransactionBuilder();
+				txBuilder.AddCoins(offerCoin);
+				Assert.True(txBuilder.Verify(offerRedeemTx));
+
+				client.CheckSolutions(fulfill.Transaction);
+				RoundTrip(ref client, parameters);
+
+                var tumblerCashout = new Key().ScriptPubKey;
+                var clientEscapeSignature = client.SignEscape(FeeRate, clientEscrow.ScriptPubKey, tumblerCashout);
+				var escapeTransaction = server.GetSignedEscapeTransaction(clientEscapeSignature, FeeRate, tumblerCashout);
+
+				txBuilder = new TransactionBuilder();
+				txBuilder.AddCoins(client.EscrowedCoin);
+				Assert.True(txBuilder.Verify(escapeTransaction));
+
+				var solution = client.GetSolution();
+				RoundTrip(ref client, parameters);
+				Assert.True(solution == puzzlesSolutions[currentPuzzle]);
+
+                Assert.True(client.NewPuzzleRequest());
+                Assert.True(server.NewPuzzleRequest());
+            }
+
+
 		}
 
 		private void RoundtripJson<T>(ref T result)

@@ -1,14 +1,27 @@
 For the Transactions:
 
 Alice:
-	T_escr:
+	T_escr [DONE]:
 		- Just needs a modification to the amount that is passed into it, I just need to figure out how would that be passed.
 			- See ClientChannelNegotiation.BuildClientEscrowTxOut()
-	T_refund (from T_escr):
+	T_refund (from T_escr) [DONE]:
 		- Doesn't need modification, it just assumes that you would need all the amount of BTCs that T_escr was initlized to.
 			- We don't need to worry about the change here, that's why this is is the same
 				- See SolverClientSession.CreateRedeemTransaction(feeRate)
+	T_puzzle:
+
+	T_solve:
+
+	T_cash:
+
+
+Parameters:
+	Alice -> AliceRequestedPaymentsCount:
+		- This is the total numbers of payments Alice want to make with the Tumbler (Alice can do upto this limit)
 	
+	Alice -> CurrentPuzzleNum:
+		- This reflect the puzzle that Alice and the Tumbler are currently trying to solve (this number should be limited (<=) by AliceRequestedPaymentsCount.
+
 	
 Some Problems:
 	- Bob blinds the Voucher (at ClientChannelNegotiation.ReceiveUnsignedVoucher(voucherResponse);), but Alice is the one that unblinds it (at ClientChannelNegotiation.CheckVoucherSolution(voucher);), Alice shouldn't be able to do that (have acess to the blinding factor)
@@ -17,6 +30,7 @@ Some Problems:
 
 
 Questions:
-	- Should the Tumbler fee be higher?
+	- Should the Tumbler fee be higher (linked to the requested payment number)?
+	- Should there be an upper limit to the amount of payments Bob requests?
 	- Should the payment phase be longer, if so, how much longer?
 		- First you need to confirm that all of the Alice's stuff is going to be done in the PaymentPhase

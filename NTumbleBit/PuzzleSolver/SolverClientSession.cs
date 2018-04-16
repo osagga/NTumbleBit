@@ -96,6 +96,7 @@ namespace NTumbleBit.PuzzleSolver
 
 		public State GetInternalState()
 		{
+			// TODO[DEBUG]: Might need to save "CurrentPuzzleNum" here
 			var state = Serializer.Clone(InternalState);
 			if(_PuzzleElements != null)
 			{
@@ -206,10 +207,10 @@ namespace NTumbleBit.PuzzleSolver
             AssertState(SolverClientStates.WaitingPuzzle);
 			// NOTE: -1 because we use it as an index (so we go from 0->PaymentsCount-1)
 			InternalState.Puzzle = Parameters.Puzzles[(Parameters.CurrentPuzzleNum-1)] ?? throw new ArgumentNullException(nameof(Parameters.CurrentPuzzleNum));
-			InternalState.Status = SolverClientStates.WaitingGeneratePuzzles;
+            InternalState.Status = SolverClientStates.WaitingGeneratePuzzles;
 		}
 
-		public PuzzleValue[] GeneratePuzzles()
+        public PuzzleValue[] GeneratePuzzles()
 		{
 			AssertState(SolverClientStates.WaitingGeneratePuzzles);
 			List<PuzzleSetElement> puzzles = new List<PuzzleSetElement>();
@@ -295,11 +296,12 @@ namespace NTumbleBit.PuzzleSolver
 				.ToArray();
 		}
 
-		public TransactionSignature SignOffer(OfferInformation offerInformation)
+		public TransactionSignature SignOffer(OfferInformation offerInformation, Script aliceCashoutDestination)
 		{
-            // TODO: This is the function that generates that the T_Puzzle for the client.
-            // NOTE: The client signs this Tx and sends the signature back
-            // TODO: This T_Puzzle should give J (from the InternalState? Or a paremeter passed to this function) to the Tumbler
+            // NOTE: This is the function that generates that the T_Puzzle for the client.
+            // The client signs this Tx and sends the signature back
+			// TODO[DESIGN]: Should Alice generate a new address for the 'Q-J' change?
+
 			if(offerInformation == null)
 				throw new ArgumentNullException(nameof(offerInformation));
 			AssertState(SolverClientStates.WaitingOffer);
@@ -313,16 +315,25 @@ namespace NTumbleBit.PuzzleSolver
 			}.ToScript();
 
 			var escrowCoin = InternalState.EscrowedCoin;
-            // TODO: This should be (Parameters.CurrentPuzzleNum * Denomination)
-			var txOut = new TxOut(escrowCoin.Amount - offerInformation.Fee, offerScript.WitHash.ScriptPubKey.Hash);
+			
+			var aliceChange = ((Parameters.AliceRequestedPaymentsCount - Parameters.CurrentPuzzleNum) * Parameters.Denomination);
+            
+			// NOTE: The Tumbler will take everything (The Tumbler's Fee plus j solutions Fees) besides the change Alive expects (Q-J)
+			var txOut = new TxOut((escrowCoin.Amount - aliceChange) - offerInformation.Fee, offerScript.WitHash.ScriptPubKey.Hash);
 			var offerCoin = new Coin(escrowCoin.Outpoint, txOut).ToScriptCoin(offerScript);
-
 
 			Transaction tx = new Transaction();
 			tx.Inputs.Add(new TxIn(escrowCoin.Outpoint));
-			// TODO: Here we need to add another outpoint that gives the change back to Alice.
-			// TODO[DESIGN]: Should the change destination be the same one address Alice used as a destination for the redeem or a new one?
-			tx.Outputs.Add(offerCoin.TxOut);
+            tx.Inputs[0].ScriptSig = new Script(
+                Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+                Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+                Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
+            );
+            tx.Inputs[0].Witnessify();
+            // TODO[DONE]: Here we need to add another outpoint that gives the change back to Alice.
+            tx.Outputs.Add(offerCoin.TxOut);
+			// TODO[DESIGN]: Should Alice generate a new change address for T_Puzzle?
+			tx.Outputs.Add(new TxOut(aliceChange, aliceCashoutDestination));
 
 			var escrow = EscrowScriptPubKeyParameters.GetFromCoin(escrowCoin);
 			escrowCoin = escrowCoin.Clone();
@@ -330,23 +341,37 @@ namespace NTumbleBit.PuzzleSolver
 			var signature = tx.Inputs.AsIndexedInputs().First().Sign(InternalState.EscrowKey, escrowCoin, SigHash.All);
 
 			InternalState.OfferCoin = offerCoin;
-			InternalState.Status = SolverClientStates.WaitingPuzzleSolutions;
+            InternalState.TumblerCashOutDestination = offerInformation.FulfillKey.ScriptPubKey;
+            InternalState.Status = SolverClientStates.WaitingPuzzleSolutions;
 			return signature;
 		}
 
-		public TransactionSignature SignEscape()
+		public TransactionSignature SignEscape(FeeRate feeRate, Script aliceCashout, Script tumblerCashout)
 		{
-            // TODO: This probably need to be fully changed such that we specify the output and sign with SIGHASH_ALL to secure it.
+            // NOTE: This function signes T_cash that directly gives 'J' payments to the Tumbler and 'Q-J' to Alice
             // TODO: Also we wouldn't be doing this step after we complete, we would do it while solving other puzzles.
-			AssertState(SolverClientStates.Completed);
-			var dummy = new Transaction();
-			dummy.Inputs.Add(new TxIn(InternalState.EscrowedCoin.Outpoint));
-			dummy.Outputs.Add(new TxOut());
-
-			var escrow = EscrowScriptPubKeyParameters.GetFromCoin(InternalState.EscrowedCoin);
+            // NOTE: Changing the type of the signature here might make the Tumbler not able to combine all the T_cash transactions from all the Alices and make them one.
+            // TODO: Should we use new addresses for Alice and the Tumbler?
+            AssertState(SolverClientStates.Completed);
+			var tx_cash = new Transaction();
+			tx_cash.Inputs.Add(new TxIn(InternalState.EscrowedCoin.Outpoint));
+            tx_cash.Inputs[0].ScriptSig = new Script(
+                Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+                Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+                Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
+                );
+            // NOTE: I'm not sure if we need to "Witnessify" here, but I'll add it just in case.
+            tx_cash.Inputs[0].Witnessify();
+            // Alice should expect to get "Q-J" payments back.
+            var alicePayment = (Parameters.AliceRequestedPaymentsCount - Parameters.CurrentPuzzleNum) * Parameters.Denomination;
+			tx_cash.Outputs.Add(new TxOut(InternalState.EscrowedCoin.Amount-alicePayment, tumblerCashout));
+            tx_cash.Outputs.Add(new TxOut(alicePayment, aliceCashout));
+            tx_cash.Outputs[0].Value -= feeRate.GetFee(tx_cash.GetVirtualSize());
+            var escrow = EscrowScriptPubKeyParameters.GetFromCoin(InternalState.EscrowedCoin);
 			var coin = InternalState.EscrowedCoin.Clone();
 			coin.OverrideScriptCode(escrow.GetInitiatorScriptCode());
-			return dummy.SignInput(InternalState.EscrowKey, coin, SigHash.None | SigHash.AnyoneCanPay);
+            return tx_cash.SignInput(InternalState.EscrowKey, coin);
+            //return dummy.SignInput(InternalState.EscrowKey, coin, SigHash.None | SigHash.AnyoneCanPay);
 		}
 
 		public TrustedBroadcastRequest CreateOfferRedeemTransaction(FeeRate feeRate)
@@ -355,7 +380,7 @@ namespace NTumbleBit.PuzzleSolver
 			tx.LockTime = EscrowScriptPubKeyParameters.GetFromCoin(InternalState.EscrowedCoin).LockTime;
 			tx.Inputs.Add(new TxIn());
 			tx.Inputs[0].Sequence = 0;
-			// TODO: OfferRedeemTransaction (T_refund) from T_puzzle should only
+			// TODO[DONE]: OfferRedeemTransaction (T_refund) from T_puzzle should only
 			// send 'J' value to Alice, since T_puzzle sends 'Q-J' to Alice directly.
 			tx.Outputs.Add(new TxOut(InternalState.OfferCoin.Amount, InternalState.RedeemDestination));
 			tx.Inputs[0].ScriptSig = new Script(
@@ -467,7 +492,18 @@ namespace NTumbleBit.PuzzleSolver
 			return InternalState.PuzzleSolution;
 		}
 
-		public override LockTime GetLockTime(CycleParameters cycle)
+        public bool NewPuzzleRequest()
+        {
+            AssertState(SolverClientStates.Completed);
+            var canSolveMore = Parameters.CurrentPuzzleNum <= Parameters.AliceRequestedPaymentsCount;
+            if (canSolveMore)
+            {
+                InternalState.Status = SolverClientStates.WaitingPuzzle;                
+            }
+            return canSolveMore;
+        }
+
+        public override LockTime GetLockTime(CycleParameters cycle)
 		{
 			return cycle.GetClientLockTime();
 		}

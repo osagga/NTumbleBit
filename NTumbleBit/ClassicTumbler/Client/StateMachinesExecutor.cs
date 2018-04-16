@@ -15,6 +15,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 		public StateMachinesExecutor(
 			TumblerClientRuntime runtime)
 		{
+			// TODO: Should this "_ParametersHash" contain the Alice and Bob payments count? Should there values be set before this function is called?
             Runtime = runtime ?? throw new ArgumentNullException("runtime");
 			_ParametersHash = Runtime.TumblerParameters.GetHash();
 		}

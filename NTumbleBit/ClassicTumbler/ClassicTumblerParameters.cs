@@ -249,35 +249,34 @@ namespace NTumbleBit.ClassicTumbler
 
         public bool Check(PromiseParameters promiseParams)
 		{
-			// return promiseParams.FakeTransactionCountPerLevel == FakeTransactionCount &&
-			// 	promiseParams.RealTransactionCountPerLevel == RealTransactionCount &&
-			// 	promiseParams.PaymentsCount == PaymentsCount;
 			return promiseParams.FakeTransactionCountPerLevel == FakeTransactionCount &&
-				promiseParams.RealTransactionCountPerLevel == RealTransactionCount;
+				promiseParams.RealTransactionCountPerLevel == RealTransactionCount &&
+				promiseParams.Denomination == Denomination;
 		}
 
 		public bool Check(SolverParameters solverParams)
 		{
+			// TODO[DONE]: Check the Denomination here too.
+			// NOTE: Should we also add a check here for the paymentCount of Bob?
 			return solverParams.FakePuzzleCount == FakePuzzleCount &&
-				solverParams.RealPuzzleCount == RealPuzzleCount;
+				solverParams.RealPuzzleCount == RealPuzzleCount &&
+				solverParams.Denomination == Denomination;
 		}
 
 		public SolverParameters CreateSolverParamaters()
 		{
 			/*
-		TODO:
+		TODO: [DONE]
 			- We need to add a definition to "AlicePaymentsCount" in the current class.
 			- When this is called, it's assumed that the Value of "AlicePaymentsCount" is set.
-			- We also need to define the corresponding fields in the class "SolverParameters"
-				- "PaymentsCount" or "AlicePaymentsCount": This should reflect the total amount of Q BTCs alice has escrowed.
-				- "TotalSolvedPuzzles": This should reflect the current total number of puzzles Alice got the solutions to.
-					- This value is bounded by "PaymentsCount" as the maximun number.
+			- We also need to define the corresponding field in the class "SolverParameters" as "AliceRequestedPaymentsCount"
 			 */
 			return new SolverParameters
 			{
-				// TODO: Need to add AlicePaymentAmount here
 				FakePuzzleCount = FakePuzzleCount,
 				RealPuzzleCount = RealPuzzleCount,
+				Denomination = Denomination,
+				AliceRequestedPaymentsCount = AlicePaymentsCount,
 				ServerKey = ServerKey.PublicKey
 			};
 		}
@@ -288,8 +287,7 @@ namespace NTumbleBit.ClassicTumbler
 		TODO: [DONE]
 			- We need to add a definition to "BobPaymentsCount" in the current class.
 			- When this is called, it's assumed that the Value of "BobPaymentsCount" is set.
-			- We also need to define the corresponding field in the class "PromiseParameters"
-				- We can either call is "PaymentsCount" or "BobPaymentsCount".
+			- We also need to define the corresponding field in the class "PromiseParameters" as "PaymentsCount"
 			 */
 			return new PromiseParameters
 			{
@@ -297,6 +295,7 @@ namespace NTumbleBit.ClassicTumbler
 				FakeTransactionCountPerLevel = FakeTransactionCount,
 				RealTransactionCountPerLevel = RealTransactionCount,
 				PaymentsCount = BobPaymentsCount,
+				Denomination = Denomination,
 				ServerKey = ServerKey.PublicKey
 			};
 		}

@@ -25,6 +25,12 @@ namespace NTumbleBit.PuzzlePromise
             set;
         }
 
+        public Money Denomination
+        {
+            get;
+            set;
+        }
+
         public uint256 FakeFormat
         {
             get; set;
