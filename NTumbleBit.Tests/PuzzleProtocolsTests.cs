@@ -166,7 +166,7 @@ namespace NTumbleBit.Tests
 
 			Key serverEscrow = new Key();
 			Key clientEscrow = new Key();
-			int paymentCount = 50;
+			int bobPaymentCount = 22;
             var denominataion = Money.Coins(1.0m);
             var parameters = new PromiseParameters(key.PubKey)
             {
@@ -174,13 +174,13 @@ namespace NTumbleBit.Tests
                 FakeTransactionCountPerLevel = 5,
                 RealTransactionCountPerLevel = 5,
                 Denomination = denominataion,
-                PaymentsCount = paymentCount
+                PaymentsCount = bobPaymentCount
             };
 
 			var client = new PromiseClientSession(parameters);
 			var server = new PromiseServerSession(parameters);
 
-			var coin = CreateEscrowCoin(serverEscrow.PubKey, clientEscrow.PubKey, paymentCount, client.Parameters.Denomination);
+			var coin = CreateEscrowCoin(serverEscrow.PubKey, clientEscrow.PubKey, client.Parameters.PaymentsCount, client.Parameters.Denomination);
 
 			client.ConfigureEscrowedCoin(coin, clientEscrow);
 			SignaturesRequest request = client.CreateSignatureRequest(clientEscrow.PubKey.Hash, FeeRate);
@@ -325,9 +325,7 @@ namespace NTumbleBit.Tests
 
 				TransactionBuilder txBuilder = new TransactionBuilder();
 				txBuilder.AddCoins(client.EscrowedCoin);
-                // TODO: This fails on the last iteration of this test
-                // When the change to Alice is 0 (this might break something since we have an output with Zero)
-				Assert.True(txBuilder.Verify(resigned));
+                Assert.True(txBuilder.Verify(resigned));
 
 				resigned = fulfill.ReSign(offerCoin, out bool cached);
 				Assert.False(cached);
