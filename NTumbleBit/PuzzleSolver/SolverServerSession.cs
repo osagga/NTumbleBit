@@ -347,11 +347,12 @@ namespace NTumbleBit.PuzzleSolver
 
 		Transaction GetUnsignedOfferTransaction(Script aliceCashoutDestination)
 		{
-			var AliceChange = ((Parameters.AliceRequestedPaymentsCount - Parameters.CurrentPuzzleNum) * Parameters.Denomination);
+			var aliceChange = ((Parameters.AliceRequestedPaymentsCount - Parameters.CurrentPuzzleNum) * Parameters.Denomination);
 			Transaction tx = new Transaction();
 			tx.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
 			tx.AddOutput(InternalState.OfferCoin.TxOut);
-			tx.AddOutput(AliceChange, aliceCashoutDestination);
+			if (aliceChange > Money.Zero)
+				tx.AddOutput(aliceChange, aliceCashoutDestination);
 			return tx;
 		}
 
@@ -466,7 +467,8 @@ namespace NTumbleBit.PuzzleSolver
 			escapeTx.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
             var alicePayment = (Parameters.AliceRequestedPaymentsCount - Parameters.CurrentPuzzleNum) * Parameters.Denomination;
             escapeTx.Outputs.Add(new TxOut(InternalState.EscrowedCoin.Amount - alicePayment, cashout));
-            escapeTx.Outputs.Add(new TxOut(alicePayment, InternalState.AliceCashoutDestination));
+			if (alicePayment > Money.Zero)
+            	escapeTx.Outputs.Add(new TxOut(alicePayment, InternalState.AliceCashoutDestination));
 
             escapeTx.Inputs[0].ScriptSig = new Script(
 				Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),

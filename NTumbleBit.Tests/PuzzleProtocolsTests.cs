@@ -166,7 +166,7 @@ namespace NTumbleBit.Tests
 
 			Key serverEscrow = new Key();
 			Key clientEscrow = new Key();
-			int paymentCount = 5;
+			int paymentCount = 50;
             var denominataion = Money.Coins(1.0m);
             var parameters = new PromiseParameters(key.PubKey)
             {
@@ -248,7 +248,7 @@ namespace NTumbleBit.Tests
 		{
 			RsaKey key = TestKeys.Default;
 
-			var alicePaymentsCount = 1;
+			var alicePaymentsCount = 22;
             var denomination = Money.Coins(1.0m);
 			var parameters = new SolverParameters
 			{

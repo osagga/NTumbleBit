@@ -1,5 +1,6 @@
 ﻿using NBitcoin;
 using System;
+using System.Linq;
 
 namespace NTumbleBit.PuzzlePromise
 {
@@ -16,7 +17,8 @@ namespace NTumbleBit.PuzzlePromise
             BobCashoutDestination = bobCashoutDestination;
             FeeVariations = feeVariations;
             IndexesSalt = indexesSalt;
-            if (indexes.Length != salts.Length)
+            // NOTE: salts is a 2D array so we would do "salts.First()" instead of just "salts"
+            if (indexes.Length != salts.First().Length)
                 throw new ArgumentException("Indexes and Salts array should be of the same length");
         }
 

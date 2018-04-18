@@ -333,8 +333,9 @@ namespace NTumbleBit.PuzzleSolver
             // TODO[DONE]: Here we need to add another outpoint that gives the change back to Alice.
             tx.Outputs.Add(offerCoin.TxOut);
 			// TODO[DESIGN]: Should Alice generate a new change address for T_Puzzle?
-			tx.Outputs.Add(new TxOut(aliceChange, aliceCashoutDestination));
-
+			if (aliceChange > Money.Zero)
+				tx.Outputs.Add(new TxOut(aliceChange, aliceCashoutDestination));
+			
 			var escrow = EscrowScriptPubKeyParameters.GetFromCoin(escrowCoin);
 			escrowCoin = escrowCoin.Clone();
 			escrowCoin.OverrideScriptCode(escrow.GetInitiatorScriptCode());
@@ -365,7 +366,8 @@ namespace NTumbleBit.PuzzleSolver
             // Alice should expect to get "Q-J" payments back.
             var alicePayment = (Parameters.AliceRequestedPaymentsCount - Parameters.CurrentPuzzleNum) * Parameters.Denomination;
 			tx_cash.Outputs.Add(new TxOut(InternalState.EscrowedCoin.Amount-alicePayment, tumblerCashout));
-            tx_cash.Outputs.Add(new TxOut(alicePayment, aliceCashout));
+			if (alicePayment > Money.Zero)
+            	tx_cash.Outputs.Add(new TxOut(alicePayment, aliceCashout));
             tx_cash.Outputs[0].Value -= feeRate.GetFee(tx_cash.GetVirtualSize());
             var escrow = EscrowScriptPubKeyParameters.GetFromCoin(InternalState.EscrowedCoin);
 			var coin = InternalState.EscrowedCoin.Clone();
