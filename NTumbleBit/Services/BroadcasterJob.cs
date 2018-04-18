@@ -96,7 +96,7 @@ namespace NTumbleBit.Services
 					}
 					if(unhandled != null)
 					{
-						Logs.Broadcasters.LogError("Uncaught exception BroadcasterJob : " + unhandled.ToString());
+						Logs.Broadcasters.LogError($"Uncaught exception BroadcasterJob : {unhandled.ToString()}");
 						cancellationToken.WaitHandle.WaitOne(5000);
 					}
 				}
