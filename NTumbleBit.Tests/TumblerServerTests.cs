@@ -204,7 +204,7 @@ namespace NTumbleBit.Tests
 
 				Assert.Equal(PaymentStateMachineStatus.TumblerChannelCreating, machine.Status);
 				//Wait escrow broadcasted
-				Thread.Sleep(1000);
+				Thread.Sleep(5000);
 				server.TumblerNode.Generate(1);
 				machine.Update();
 				Assert.Equal(PaymentStateMachineStatus.TumblerChannelCreated, machine.Status);

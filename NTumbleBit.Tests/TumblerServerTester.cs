@@ -86,13 +86,15 @@ namespace NTumbleBit.Tests
 				conf.AllowInsecure = !shouldBeStandard;
 
 				conf.NoRSAProof = !shouldBeStandard;
-				// TODO: Set the "PaymentCount" parameter here!
+				// TODO [DONE]: Set the "PaymentCount" parameter here!
 				if(!shouldBeStandard)
 				{
 					conf.ClassicTumblerParameters.FakePuzzleCount = 10;
 					conf.ClassicTumblerParameters.FakeTransactionCount = 10;
 					conf.ClassicTumblerParameters.RealTransactionCount = 10;
 					conf.ClassicTumblerParameters.RealPuzzleCount = 2;
+					conf.ClassicTumblerParameters.AlicePaymentsCount = 3;
+					conf.ClassicTumblerParameters.BobPaymentsCount = 3;
 					conf.ClassicTumblerParameters.CycleGenerator.FirstCycle.Start = 105;
 				}
 				else

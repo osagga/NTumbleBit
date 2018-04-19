@@ -246,7 +246,7 @@ namespace NTumbleBit.ClassicTumbler
 				throw new PuzzleException("invalid-escrow");
 
 			// TODO: Here we need to change "Parameters.Denomination" to "Parameters.Denomination * Parameters.BobPaymentsCount"
-			if(escrowedCoin.Amount != Parameters.Denomination)
+			if(escrowedCoin.Amount != (Parameters.Denomination * Parameters.BobPaymentsCount))
 				throw new PuzzleException("invalid-amount");
 
 
