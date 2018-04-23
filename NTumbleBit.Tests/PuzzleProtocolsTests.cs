@@ -243,12 +243,22 @@ namespace NTumbleBit.Tests
 			return scriptCoin;
 		}
 
-		[Fact]
-		public void TestPuzzleSolver()
+
+
+        [Fact]
+        public void TestPuzzleSolver()
+        {
+            // The first parameter is for the total puzzles Alice might solve, and the second parameter indicate how many puzzles were actually solved.
+            _TestPuzzleSolver( 42,  42);
+            _TestPuzzleSolver( 42,  21);
+        }
+
+        
+		private void _TestPuzzleSolver(int totalPuzzles, int requestPuzzles)
 		{
 			RsaKey key = TestKeys.Default;
 
-			var alicePaymentsCount = 22;
+			var alicePaymentsCount = totalPuzzles;
             var denomination = Money.Coins(1.0m);
 			var parameters = new SolverParameters
 			{
@@ -279,9 +289,10 @@ namespace NTumbleBit.Tests
 
 			client.Parameters.Puzzles = promise_puzzles;
 			
-			for (int currentPuzzle = 0; currentPuzzle < client.Parameters.AliceRequestedPaymentsCount; currentPuzzle++)
+			for (int currentPuzzle = 0; currentPuzzle < requestPuzzles; currentPuzzle++)
 			{
-                client.Parameters.CurrentPuzzleNum++;
+                client.AcceptBobPuzzle();
+                server.AcceptAlicePuzzle();
 
                 client.AcceptPuzzle();
 				RoundTrip(ref client, parameters);
@@ -347,7 +358,7 @@ namespace NTumbleBit.Tests
 				RoundTrip(ref client, parameters);
 
                 var tumblerCashout = new Key().ScriptPubKey;
-                var clientEscapeSignature = client.SignEscape(FeeRate, clientEscrow.ScriptPubKey, tumblerCashout);
+                var clientEscapeSignature = client.SignEscape(clientEscrow.ScriptPubKey, tumblerCashout, offerInformation.Fee);
 				var escapeTransaction = server.GetSignedEscapeTransaction(clientEscapeSignature, FeeRate, tumblerCashout);
 
 				txBuilder = new TransactionBuilder();
@@ -358,12 +369,26 @@ namespace NTumbleBit.Tests
 				RoundTrip(ref client, parameters);
 				Assert.True(solution == puzzlesSolutions[currentPuzzle]);
 
-                Assert.True(client.NewPuzzleRequest());
-                Assert.True(server.NewPuzzleRequest());
+                Assert.True(client.GetInternalState().CurrentPuzzleNum == server.GetInternalState().CurrentPuzzleNum);
+
+                if (client.GetInternalState().CurrentPuzzleNum == client.Parameters.AliceRequestedPaymentsCount)
+                {
+                    Assert.False(client.CanSolvePuzzles());
+                    Assert.False(server.CanSolvePuzzles());
+                }
+                else
+                {
+                    Assert.True(client.CanSolvePuzzles());
+                    Assert.True(server.CanSolvePuzzles());
+
+                    client.AllowPuzzleRequest();
+                    server.AllowPuzzleRequest();
+                }
             }
 
-
-		}
+            Assert.True(client.GetInternalState().CurrentPuzzleNum == requestPuzzles);
+            Assert.True(server.GetInternalState().CurrentPuzzleNum == requestPuzzles);
+        }
 
 		private void RoundtripJson<T>(ref T result)
 		{

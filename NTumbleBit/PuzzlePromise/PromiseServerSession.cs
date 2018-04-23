@@ -183,6 +183,8 @@ namespace NTumbleBit.PuzzlePromise
               * - BobCashoutDestination should be part of the revelation
              */
 
+            AssertState(PromiseServerStates.WaitingRevelation);
+
             if (revelation == null)
                 throw new ArgumentNullException(nameof(revelation));
 
@@ -198,7 +200,8 @@ namespace NTumbleBit.PuzzlePromise
             if (bobCashoutDestination == null)
                 throw new ArgumentNullException($"The revelation should contains {nameof(bobCashoutDestination)}");
 
-            AssertState(PromiseServerStates.WaitingRevelation);
+            if (revelation.CashoutFees.Length != Parameters.PaymentsCount)
+                throw new ArgumentNullException($"The revelation should contains {Parameters.PaymentsCount} cashout fees");
 
             var indexSalt = revelation.IndexesSalt;
             if (InternalState.FakeIndexesHash != PromiseUtils.HashIndexes(ref indexSalt, revelation.FakeIndexes))
@@ -222,9 +225,11 @@ namespace NTumbleBit.PuzzlePromise
                     - The problem though is that 'Denomination' is not accessible from here,
                         So maybe that should be added to the promiseParameters?
                 */
-                cashout.AddOutput(new TxOut( (i+1) * Parameters.Denomination, bobCashoutDestination));
-                cashout.Outputs[0].Value -= feeRate.GetFee(cashout.GetVirtualSize());
-                cashout.AddOutput(InternalState.EscrowedCoin.Amount - ((i+1) * Parameters.Denomination), InternalState.TumblerCashOutDestination);
+                var tumblerChange = InternalState.EscrowedCoin.Amount - ((i + 1) * Parameters.Denomination);
+                cashout.AddOutput(InternalState.EscrowedCoin.Amount - tumblerChange, bobCashoutDestination);
+                if (tumblerChange > Money.Zero)
+                    cashout.AddOutput(tumblerChange, InternalState.TumblerCashOutDestination);
+                cashout.Outputs[0].Value -= new Money(revelation.CashoutFees[i]);
 
                 // Checking valid Transactions
                 for (int j = 0; j < Parameters.RealTransactionCountPerLevel; j++)

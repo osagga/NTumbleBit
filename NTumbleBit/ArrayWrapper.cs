@@ -9,6 +9,8 @@ namespace NTumbleBit
 	{
 		TransactionSignature _Signature;
 		Script _cashoutDestination;
+        uint _txFee;
+
 		public SignatureWrapper()
 		{
 
@@ -41,7 +43,14 @@ namespace NTumbleBit
 			_Signature = signature;
 			_cashoutDestination = cashoutDestination;
 		}
-		public void ReadWrite(BitcoinStream stream)
+
+        public SignatureWrapper(TransactionSignature signature, uint fee)
+        {
+            _Signature = signature;
+            _txFee = fee;
+        }
+
+        public void ReadWrite(BitcoinStream stream)
 		{
 			var bytes = _Signature?.ToBytes();
 			stream.ReadWriteAsVarString(ref bytes);
@@ -50,7 +59,8 @@ namespace NTumbleBit
 				_Signature = new TransactionSignature(bytes);
 			}
 			stream.ReadWrite(ref _cashoutDestination);
-		}
+            stream.ReadWrite(ref _txFee);
+        }
 	}
 	public class ArrayWrapper<T> : IBitcoinSerializable where T : IBitcoinSerializable, new()
 	{

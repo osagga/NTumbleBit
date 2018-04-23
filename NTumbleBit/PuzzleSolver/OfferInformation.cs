@@ -50,11 +50,25 @@ namespace NTumbleBit.PuzzleSolver
 			}
 		}
 
-		public void ReadWrite(BitcoinStream stream)
+        Script _escapeCashout;
+        public Script EscapeCashout
+        {
+            get
+            {
+                return _escapeCashout;
+            }
+            set
+            {
+                _escapeCashout = value;
+            }
+        }
+
+        public void ReadWrite(BitcoinStream stream)
 		{
 			stream.ReadWriteC(ref _Fee);
 			stream.ReadWrite(ref _LockTime);
 			stream.ReadWriteC(ref _FulfillKey);
-		}
-	}
+            stream.ReadWrite(ref _escapeCashout);
+        }
+    }
 }

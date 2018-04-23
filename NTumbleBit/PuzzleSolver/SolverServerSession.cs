@@ -81,8 +81,12 @@ namespace NTumbleBit.PuzzleSolver
 				get;
 				set;
 			}
-
-
+            public int CurrentPuzzleNum
+            {
+                get;
+                set;
+            } = 0;
+            
             public TransactionSignature OfferClientSignature
 			{
 				get;
@@ -189,15 +193,23 @@ namespace NTumbleBit.PuzzleSolver
 			return EndSolvePuzzles();
 		}
 
-        public bool NewPuzzleRequest()
+        public void AllowPuzzleRequest()
         {
             AssertState(SolverServerStates.Completed);
-            var canSolveMore = Parameters.CurrentPuzzleNum <= Parameters.AliceRequestedPaymentsCount;
-            if (canSolveMore)
-            {
-                InternalState.Status = SolverServerStates.WaitingPuzzles;
-            }
-            return canSolveMore;
+            InternalState.Status = SolverServerStates.WaitingPuzzles;
+            return;
+        }
+
+        public void AcceptAlicePuzzle()
+        {
+            AssertState(SolverServerStates.WaitingPuzzles);
+            InternalState.CurrentPuzzleNum++;
+            return;
+        }
+
+        public bool CanSolvePuzzles()
+        {
+            return (InternalState.CurrentPuzzleNum + 1) <= Parameters.AliceRequestedPaymentsCount;
         }
 
         public void BeginSolvePuzzles(PuzzleValue[] puzzles)
@@ -228,10 +240,7 @@ namespace NTumbleBit.PuzzleSolver
 
 		public ServerCommitment[] EndSolvePuzzles()
 		{
-            // NOTE: This will return null if Alice exceeded the number of puzzles she can ask to solve.
 			AssertState(SolverServerStates.WaitingCommitmentDelivery);
-            if (Parameters.CurrentPuzzleNum > Parameters.AliceRequestedPaymentsCount)
-                return null;
 
             List<ServerCommitment> commitments = new List<ServerCommitment>();
 			foreach(var solved in InternalState.SolvedPuzzles)
@@ -302,6 +311,7 @@ namespace NTumbleBit.PuzzleSolver
 
 			InternalState.FulfillKey = new Key();
 
+            // NOTE: This dummy transaction is used to estimate the fee needed for T_offer (T_puzzle) and T_cash
 			Transaction dummy = new Transaction();
 			dummy.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));				
 			dummy.Inputs[0].ScriptSig = new Script(
@@ -310,17 +320,12 @@ namespace NTumbleBit.PuzzleSolver
 				Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
 			);
 			dummy.Inputs[0].Witnessify();
-			/*
-				TODO[DONE]:
-					We need to have the following outputs (simplified):
-						"Parameters.CurrentPuzzleNum * Parameters.Denomination" -> Tumbler under the redeem condition.
-						"InternalState.EscrowedCoin.Amount - FirstOutput" -> Alice
-			 */
-			var AlicePayment = ((Parameters.AliceRequestedPaymentsCount - Parameters.CurrentPuzzleNum) * Parameters.Denomination);
-			dummy.AddOutput(new TxOut(InternalState.EscrowedCoin.Amount - AlicePayment, new Key().ScriptPubKey.Hash));
-			dummy.AddOutput(new TxOut(AlicePayment, new Key().ScriptPubKey.Hash));
+			var alicePayment = ((Parameters.AliceRequestedPaymentsCount - InternalState.CurrentPuzzleNum) * Parameters.Denomination);
+			dummy.AddOutput(new TxOut(InternalState.EscrowedCoin.Amount - alicePayment, new Key().ScriptPubKey));
+            if (alicePayment > Money.Zero)
+                dummy.AddOutput(new TxOut(alicePayment, new Key().ScriptPubKey));
 
-			var offerTransactionFee = feeRate.GetFee(dummy.GetVirtualSize());
+            var offerTransactionFee = feeRate.GetFee(dummy.GetVirtualSize());
 
 
 			var escrow = InternalState.EscrowedCoin;
@@ -334,7 +339,7 @@ namespace NTumbleBit.PuzzleSolver
 				RedeemKey = escrowInformation.Initiator
 			}.ToScript();
 			// TODO[DONE]: Modify the first output of the T_Puzzle
-			var txOut = new TxOut((escrow.Amount - AlicePayment) - offerTransactionFee, redeem.WitHash.ScriptPubKey.Hash);
+			var txOut = new TxOut((escrow.Amount - alicePayment) - offerTransactionFee, redeem.WitHash.ScriptPubKey.Hash);
 			InternalState.OfferCoin = new Coin(escrow.Outpoint, txOut).ToScriptCoin(redeem);
 			InternalState.Status = SolverServerStates.WaitingFulfillment;
 			return new OfferInformation
@@ -347,7 +352,7 @@ namespace NTumbleBit.PuzzleSolver
 
 		Transaction GetUnsignedOfferTransaction(Script aliceCashoutDestination)
 		{
-			var aliceChange = ((Parameters.AliceRequestedPaymentsCount - Parameters.CurrentPuzzleNum) * Parameters.Denomination);
+			var aliceChange = ((Parameters.AliceRequestedPaymentsCount - InternalState.CurrentPuzzleNum) * Parameters.Denomination);
 			Transaction tx = new Transaction();
 			tx.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
 			tx.AddOutput(InternalState.OfferCoin.TxOut);
@@ -390,7 +395,7 @@ namespace NTumbleBit.PuzzleSolver
 			return InternalState.SolvedPuzzles.Select(s => s.SolutionKey).ToArray();
 		}
 
-		private void AssertState(SolverServerStates state)
+        private void AssertState(SolverServerStates state)
 		{
 			if(state != InternalState.Status)
 				throw new InvalidStateException("Invalid state, actual " + InternalState.Status + " while expected is " + state);
@@ -459,24 +464,28 @@ namespace NTumbleBit.PuzzleSolver
             // NOTE: This function generates T_cash that the Tumbler can use!
 			AssertState(SolverServerStates.WaitingEscape);
 
-			//if(clientSignature.SigHash != (SigHash.AnyoneCanPay | SigHash.None))
-			//	throw new PuzzleException("invalid-sighash");
+            //NOTE: For the optional improvment about combining all the Alice transactions, Alice should use "SigHash.Signle"
+            //if (clientSignature.SigHash != SigHash.Single)
+            //    throw new PuzzleException("invalid-sighash");
 
+            var escapeTx = new Transaction();
 
-			var escapeTx = new Transaction();			
-			escapeTx.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
-            var alicePayment = (Parameters.AliceRequestedPaymentsCount - Parameters.CurrentPuzzleNum) * Parameters.Denomination;
-            escapeTx.Outputs.Add(new TxOut(InternalState.EscrowedCoin.Amount - alicePayment, cashout));
-			if (alicePayment > Money.Zero)
+            escapeTx.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
+            escapeTx.Inputs[0].ScriptSig = new Script(
+                Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+                Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
+                Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
+                );
+            escapeTx.Inputs[0].Witnessify();
+
+            var alicePayment = (Parameters.AliceRequestedPaymentsCount - InternalState.CurrentPuzzleNum) * Parameters.Denomination;
+            escapeTx.AddOutput(new TxOut(InternalState.EscrowedCoin.Amount - alicePayment, cashout));
+            if (alicePayment > Money.Zero)
             	escapeTx.Outputs.Add(new TxOut(alicePayment, InternalState.AliceCashoutDestination));
 
-            escapeTx.Inputs[0].ScriptSig = new Script(
-				Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
-				Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
-				Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
-				);
-			escapeTx.Inputs[0].Witnessify();
-			escapeTx.Outputs[0].Value -= feeRate.GetFee(escapeTx);
+            // TODO: This is a hacky fix for now, but I need to figure out why the fee is off by 2 bytes for each TxOut I add.
+			escapeTx.Outputs[0].Value -= feeRate.GetFee(escapeTx.GetVirtualSize() + (2 * escapeTx.Outputs.Count));
+
 			AssertValidSignature(clientSignature, escapeTx);
 
 			var tumblerSignature = escapeTx.SignInput(InternalState.EscrowKey, InternalState.EscrowedCoin);
@@ -491,7 +500,6 @@ namespace NTumbleBit.PuzzleSolver
 				throw new PuzzleException("invalid-tumbler-signature");
 
             InternalState.Status = SolverServerStates.Completed;
-
 			return escapeTx;
 		}		
 

@@ -105,6 +105,13 @@ namespace NTumbleBit.PuzzlePromise
                 get;
                 set;
             }
+
+            public uint[] CashoutFees
+            {
+                get;
+                set;
+            }
+            
             public ServerCommitment[][] Commitments //2D
             {
                 get;
@@ -289,6 +296,7 @@ namespace NTumbleBit.PuzzlePromise
 
             HashBase[][] hashes = new HashBase[_Parameters.PaymentsCount][]; //2D
             _cashouts = new Transaction[_Parameters.PaymentsCount];
+            var cashoutFees = new uint[_Parameters.PaymentsCount];
             _Epsilons = new byte[_Parameters.PaymentsCount][][];
             for (int i = 0; i < _Parameters.PaymentsCount; i++)
             {
@@ -300,14 +308,13 @@ namespace NTumbleBit.PuzzlePromise
                     Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
                 );
                 cashout.Inputs[0].Witnessify();
-                /* NOTE: This value should be "Denomination * (i+1)" so that it's more adjustable.
-                    - The problem though is that 'Denomination' is not accessible from here,
-                        So maybe that should be added to the promiseParameters?
-                */
-                cashout.AddOutput(new TxOut( (i+1) * Parameters.Denomination, cashoutDestination));
-                cashout.Outputs[0].Value -= feeRate.GetFee(cashout.GetVirtualSize());
-                cashout.AddOutput(InternalState.EscrowedCoin.Amount - ((i+1) * Parameters.Denomination), InternalState.TumblerCashoutDestination);
-
+                var tumblerChange = InternalState.EscrowedCoin.Amount - ((i + 1) * Parameters.Denomination);
+                cashout.AddOutput(InternalState.EscrowedCoin.Amount - tumblerChange, cashoutDestination);
+                if (tumblerChange > Money.Zero)
+                    cashout.AddOutput(tumblerChange, InternalState.TumblerCashoutDestination);
+                var cashoutFee = feeRate.GetFee(cashout.GetVirtualSize());
+                cashout.Outputs[0].Value -= cashoutFee;
+                cashoutFees[i] = (uint) cashoutFee.Satoshi;
                 _cashouts[i] = cashout;
                 _Epsilons[i] = new byte[_Parameters.GetTotalTransactionsCountPerLevel()][];
                 hashes[i] = new HashBase[_Parameters.GetTotalTransactionsCountPerLevel()];
@@ -357,8 +364,9 @@ namespace NTumbleBit.PuzzlePromise
              */
             InternalState.Cashouts = _cashouts;
             InternalState.ClientCashoutDestination = cashoutDestination;
-            InternalState.Status = PromiseClientStates.WaitingCommitments;
+            InternalState.CashoutFees = cashoutFees;
             InternalState.FakeColumns = fakeIndices;
+            InternalState.Status = PromiseClientStates.WaitingCommitments;
             return request;
         }
 
@@ -407,7 +415,7 @@ namespace NTumbleBit.PuzzlePromise
             }
             InternalState.Status = PromiseClientStates.WaitingCommitmentsProof;
             // TODO [DONE]: Add the cashoutDestintation to the things Bob reveals to the Tumbler.
-            return new ClientRevelation(fakeIndices.ToArray(), InternalState.IndexSalt, salts, feeVariations, InternalState.ClientCashoutDestination);
+            return new ClientRevelation(fakeIndices.ToArray(), InternalState.IndexSalt, salts, InternalState.CashoutFees, feeVariations, InternalState.ClientCashoutDestination);
         }
 
         public PuzzleValue[] CheckCommitmentProof(ServerCommitmentsProof proof)

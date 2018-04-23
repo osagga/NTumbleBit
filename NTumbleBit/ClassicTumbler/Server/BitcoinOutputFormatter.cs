@@ -12,7 +12,7 @@ namespace NTumbleBit.ClassicTumbler.Server
 	{
 		public bool CanWriteResult(OutputFormatterCanWriteContext context)
 		{
-			// TODO: make this check such that it can detect 2D arrays and returns 'true' if they're 'IBitcoinSerializable'
+			// TODO[DONE]: make this check such that it can detect 2D arrays and returns 'true' if they're 'IBitcoinSerializable'
 			return (typeof(IBitcoinSerializable).GetTypeInfo().IsAssignableFrom(context.ObjectType)) ||
 				(context.ObjectType.IsArray && typeof(IBitcoinSerializable).GetTypeInfo().IsAssignableFrom(context.ObjectType.GetTypeInfo().GetElementType())) ||
 				(context.ObjectType.IsArray && context.ObjectType.GetTypeInfo().GetElementType().IsArray && typeof(IBitcoinSerializable).GetTypeInfo().IsAssignableFrom(context.ObjectType.GetTypeInfo().GetElementType().GetElementType()));
@@ -20,12 +20,11 @@ namespace NTumbleBit.ClassicTumbler.Server
 
 		public Task WriteAsync(OutputFormatterWriteContext context)
 		{
-			// TODO: The problem is here!
 			var obj = context.Object;
 			if(context.ObjectType.IsArray)
 			{
-				// TODO:  Handle the case of 2D arrays here!!!
 				Type arrayWrapper;
+                // NOTE: This case handles if context contains '2D' array of data
 				if (context.ObjectType.GetTypeInfo().GetElementType().IsArray){
 					arrayWrapper = typeof(TwoDArrayWrapper<>).GetTypeInfo().MakeGenericType(context.ObjectType.GetElementType().GetElementType());
 				}else{

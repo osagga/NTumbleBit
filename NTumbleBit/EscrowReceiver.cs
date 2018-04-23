@@ -31,8 +31,10 @@ namespace NTumbleBit
 				get;
 				set;
 			}
-			// NOTE: This field is used to store the address in which the Tumbler wants to receive its change at.
-			public Script TumblerCashoutDestination
+
+
+            // NOTE: This field is used to store the address in which the Tumbler wants to receive its change at.
+            public Script TumblerCashoutDestination
 			{
 				get;
 				set;

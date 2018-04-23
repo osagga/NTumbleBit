@@ -230,7 +230,7 @@ namespace NTumbleBit.Tests
 					if(cooperativeClient)
 					{
 						//Escape should be mined
-						Thread.Sleep(1000);
+						Thread.Sleep(10000);
 						block = server.TumblerNode.FindBlock(1).First();
 						Assert.Equal(2, block.Transactions.Count);
 

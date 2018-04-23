@@ -416,9 +416,9 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			session.ConfigureTumblerCashOutAddress(cashout.ScriptPubKey);
 			var correlation = new CorrelationId(channelId);
 			// TODO: Check if the Type of the address here is ok (it doesn't assume anything)
-			Tracker.AddressCreated(cycle.Start, TransactionType.TumblerCashout, cashout.ScriptPubKey, correlation);
-
-			return new TumblerEscrowData()
+			Tracker.AddressCreated(cycle.Start, TransactionType.ClientFulfill, cashout.ScriptPubKey, correlation);
+            Repository.Save(cycleId, session);
+            return new TumblerEscrowData()
 			{
 				Transaction = tx.Transaction,
 				OutputIndex = (int)session.EscrowedCoin.Outpoint.N,
@@ -520,9 +520,18 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.PaymentPhase);
 			AssertNotDuplicateQuery(cycleId, channelId);
 
-			QueueWork(() =>
+            if (!session.CanSolvePuzzles())
+            {
+                //NOTE: This is the case that Alice is asking to solve a puzzle she didn't pay for (more than the escrowed payment amount).
+                throw new ActionResultException(BadRequest("exceed-puzzle-count"));
+            }
+            else
+            {
+                session.AcceptAlicePuzzle();
+            }
+
+            QueueWork(() =>
 			{
-                session.Parameters.CurrentPuzzleNum++;
                 session.BeginSolvePuzzles(puzzles);
 				Repository.Save(cycleId, session);
 			});
@@ -593,7 +602,19 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			var feeRate = await Services.FeeService.GetFeeRateAsync();
 			// TODO[DONE]: The offerCoin reflects the correct Amount that the Tumbler should receive.
 			var fulfillKey = session.CheckBlindedFactors(blindFactors, feeRate);
-			Repository.Save(cycleId, session);
+
+            var correlation = new CorrelationId(channelId);
+            var cycle = GetCycle(cycleId);
+
+            // TODO: Check if we actually want this to be "ConfigureAwait(false)"
+            var cashout = await Services.WalletService.GenerateAddressAsync().ConfigureAwait(false);
+            // Save the cashout destination internally.
+            session.ConfigureTumblerCashOutAddress(cashout.ScriptPubKey);
+            // TODO: Check if the Type of the address here is ok (it doesn't assume anything)
+            Tracker.AddressCreated(cycle.Start, TransactionType.ClientEscape, cashout.ScriptPubKey, correlation);
+            // Send the cashout to Alice so that it can be used in the escape transaction.
+            fulfillKey.EscapeCashout = cashout.ScriptPubKey;
+            Repository.Save(cycleId, session);
 			return fulfillKey;
 		}
 
@@ -669,41 +690,76 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			[ModelBinder(BinderType = typeof(UInt160ModelBinder))]  uint160 channelId,
 			[FromBody]SignatureWrapper wrapper)
 		{
-			var clientSignature = wrapper?.Signature;
+            /*
+             *  NOTE:
+             *      The logic here is that when Alice sends T_cash (T_escape) to the Tumbler, we should stop the plan to broadcast T_puzle (T_offer) and T_solve (T_fulfill)
+             *      and instead plan to broadcast T_cash in the cashoutPhase for the Tumbler.
+             *      The reason why the Tumbler shouldn't broadcast T_cash immediatly is becasue Alice might want to solve more puzzles, therefore Alice is expected to send
+             *      another T_cash with a higher output value for the Tumbler.
+             *  TODO:
+             *      - Delete T_puzzle, T_offer and T_cash from the Repo.
+             *  Optional improvments:
+             *      - Make the Tumbler combine all the T_cash transacations from different Alices so that we only need to brodcast one Transaction for all Alices.
+            */
+
+            var clientSignature = wrapper?.Signature;
 			if(tumblerId == null)
 				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.TumblerCashoutPhase);
 			AssertNotDuplicateQuery(cycleId, channelId);
 
-			var fee = await Services.FeeService.GetFeeRateAsync();
+            var cycle = GetCycle(cycleId);
+            var correlation = GetCorrelation(session);
+            var fee = await Services.FeeService.GetFeeRateAsync();
 
-			var dummy = new Key().PubKey.Hash.ScriptPubKey;
-			var tx = session.GetSignedEscapeTransaction(clientSignature, fee, dummy);
-			var state = session.GetInternalState();
+			var tx = session.GetSignedEscapeTransaction(clientSignature, fee, session.GetInternalState().TumblerCashoutDestination);
+            Tracker.TransactionCreated(cycleId, TransactionType.ClientEscape, tx.GetHash(), correlation);
 
-			// The previous tx is broadcastable, but let's give change to the wallet to join everything in a single transaction
-			var unused = Runtime.Services.WalletService.ReceiveAsync(state.EscrowedCoin, clientSignature, state.EscrowKey, fee)
-				.ContinueWith(async (Task<Transaction> task) =>
-				{
-					try
-					{
-						tx = await task.ConfigureAwait(false);
-						var correlation = GetCorrelation(session);
-						Tracker.AddressCreated(cycleId, TransactionType.ClientEscape, tx.Outputs[0].ScriptPubKey, correlation);
-						Tracker.TransactionCreated(cycleId, TransactionType.ClientEscape, tx.GetHash(), correlation);
-						if(Repository.MarkUsedNonce(cycleId, new uint160(tx.GetHash().ToBytes().Take(20).ToArray())))
-						{
-							Logs.Tumbler.LogInformation($"Cashing out from {tx.Inputs.Count} Alices");
-							await Services.BroadcastService.BroadcastAsync(tx).ConfigureAwait(false);
-						}
-					}
-					catch(Exception ex)
-					{
-						Logs.Tumbler.LogCritical(new EventId(), ex, "Error during escape transaction callback");
-					}
-				});
+            if (Repository.MarkUsedNonce(cycleId, new uint160(tx.GetHash().ToBytes().Take(20).ToArray())))
+            {
+                //TODO: Here we need to remove the previous T_cash so that we only broadcast the one with the highest value to the Tumbler.
 
-			return new NoData();
+                await Services.BroadcastService.BroadcastAsync(tx);
+                //Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientEscape, correlation, new TrustedBroadcastRequest()
+                //{
+                //    BroadcastAt = cycle.GetPeriods().TumblerCashout.Start,
+                //    Transaction = tx
+                //});
+            }
+
+            if (session.CanSolvePuzzles())
+            {
+                // NOTE: This changes the internal session state from "Completed" to "WaitingPuzzles" to allow Alice to call "BeginSolvePuzzles" again for the next puzzle
+                session.AllowPuzzleRequest();
+            }
+            Repository.Save(cycle.Start, session);
+
+            //var state = session.GetInternalState();
+
+            //// The previous tx is broadcastable, but let's give change to the wallet to join everything in a single transaction
+            //var unused = Runtime.Services.WalletService.ReceiveAsync(state.EscrowedCoin, clientSignature, state.EscrowKey, fee)
+            //    .ContinueWith(async (Task<Transaction> task) =>
+            //    {
+            //        try
+            //        {
+            //            tx = await task.ConfigureAwait(false);
+            //            var correlation = GetCorrelation(session);
+            //            // We don't need to track the address since we are not using a dummy and we already tracked the cashout address when generating it.
+            //            Tracker.AddressCreated(cycleId, TransactionType.ClientEscape, tx.Outputs[0].ScriptPubKey, correlation);
+            //            Tracker.TransactionCreated(cycleId, TransactionType.ClientEscape, tx.GetHash(), correlation);
+            //            if (Repository.MarkUsedNonce(cycleId, new uint160(tx.GetHash().ToBytes().Take(20).ToArray())))
+            //            {
+            //                Logs.Tumbler.LogInformation($"Cashing out from {tx.Inputs.Count} Alices");
+            //                await Services.BroadcastService.BroadcastAsync(tx).ConfigureAwait(false);
+            //            }
+            //        }
+            //        catch (Exception ex)
+            //        {
+            //            Logs.Tumbler.LogCritical(new EventId(), ex, "Error during escape transaction callback");
+            //        }
+            //    });
+
+            return new NoData();
 		}
 	}
 }

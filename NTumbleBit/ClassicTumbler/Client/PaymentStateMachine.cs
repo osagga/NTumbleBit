@@ -270,7 +270,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 							{
 								clientEscrowTx = Services.WalletService.FundTransactionAsync(escrowTxOut, feeRate).GetAwaiter().GetResult();
 							}
-							catch(NotEnoughFundsException ex)
+                            catch (NotEnoughFundsException ex)
 							{
 								Logs.Client.LogInformation($"Not enough funds in the wallet to tumble. Missing about {ex.Missing}. Denomination is {Parameters.Denomination}.");
 								break;
@@ -470,8 +470,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 						//No "else if" intended
 						if(Status == PaymentStateMachineStatus.TumblerChannelSecured)
 						{
-							// Start of a puzzle solving session.
-							/*
+                            // Start of a puzzle solving session.
+                            /*
 							NOTE:
 								- The logic here is that, every call to "update" with the state "TumblerChannelSecured" will solve
 									a new puzzle from the stored puzzles we got from Bob (incrementally).
@@ -489,24 +489,39 @@ namespace NTumbleBit.ClassicTumbler.Client
 												- Otherwise, we would just cashout the 
 								
 							 */
-							
-							// TODO [DONE]: This is the number of the puzzle we are currently solving.
-                            SolverClientSession.Parameters.CurrentPuzzleNum = 1;
 
-							alice = Runtime.CreateTumblerClient(cycle.Start, Identity.Alice);
+                            // TODO [DONE]: This is the number of the puzzle we are currently solving.
+                            if (!SolverClientSession.CanSolvePuzzles())
+                            {
+                                Logs.Client.LogDebug("Tumbler doesn't allow solving more puzzles, the payment is wasted");
+                                Status = PaymentStateMachineStatus.Wasted;
+                                break;
+                            }else{
+                                SolverClientSession.AcceptBobPuzzle();
+                            }
+                            
+                            alice = Runtime.CreateTumblerClient(cycle.Start, Identity.Alice);
 							Logs.Client.LogDebug("Starting the puzzle solver protocol...");
-							// TODO: We might need to manually set the InternalState of the SolverClient to "WaitingPuzzle"
-							// so that we can solve future puzzles without violating assertions in the client.
+                            // TODO: We might need to manually set the InternalState of the SolverClient to "WaitingPuzzle"
+                            // so that we can solve future puzzles without violating assertions in the client.
 
-                            // NOTE: This function assumes that Parameters.CurrentPuzzleNum is the puzzle that we need to get the solution for (Related to the deign note above).
+                            // NOTE: This function assumes that InternalState.CurrentPuzzleNum is the puzzle that we need to get the solution for (Related to the deign note above).
                             SolverClientSession.AcceptPuzzle();
 
 							var puzzles = SolverClientSession.GeneratePuzzles();
-							// TODO[DONE]: The tumbler should start the counter here.
-							// Note: Every call to this function will be considered as a new puzzle solving request, and will cost one
-							// more payment than the previous one.
-							alice.BeginSolvePuzzles(SolverClientSession.Id, puzzles);
-
+                            // TODO[DONE]: The tumbler should start the counter here.
+                            // Note: Every call to this function will be considered as a new puzzle solving request, and will cost one
+                            // more payment than the previous one.
+                            try
+                            {
+                                alice.BeginSolvePuzzles(SolverClientSession.Id, puzzles);
+                            }
+                            catch (Exception ex) when (ex.Message.IndexOf("exceed-puzzle-count", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                Logs.Client.LogDebug(new EventId(), ex, "Tumbler doesn't allow solving more puzzles, the payment is wasted");
+                                Status = PaymentStateMachineStatus.Wasted;
+                                break;
+                            }
 							NeedSave = true;
 							Status = PaymentStateMachineStatus.ProcessingPayment;
 						}
@@ -526,23 +541,18 @@ namespace NTumbleBit.ClassicTumbler.Client
 							var blindFactors = SolverClientSession.GetBlindFactors(solutionKeys);
 							var offerInformation = alice.CheckBlindFactors(SolverClientSession.Id, blindFactors);
 
-							// TODO: Not sure if this is how we can generate a new address that Alice can receive the change back on.
-							// NOTE: WARNING, the way I'm using "GetNewDestination" is the same on Bob's side, maybe this could link
-							// Alice to Bob, I'm not sure.
-							var aliceCashoutDestination = DestinationWallet.GetNewDestination();
+                            // NOTE: This generates a new address that Alice can receive the change back on.
+                            var aliceCashoutDestination = Services.WalletService.GenerateAddressAsync().GetAwaiter().GetResult().ScriptPubKey;
 							Tracker.AddressCreated(cycle.Start, TransactionType.TumblerCashout, aliceCashoutDestination, correlation);
 							
 							// NOTE: It seems like this creates and signs T_puzzle
-							// TODO[DESIGN]: Solve a design decision inside.
+							// TODO[DESIGN][DONE]: Solve a design decision inside.
 							var offerSignature = SolverClientSession.SignOffer(offerInformation, aliceCashoutDestination);
 							
 							// NOTE: It seems like this function creates the redeem transaction for T_puzzle
 							// TODO[DONE]: finish some work inside.
 							var offerRedeem = SolverClientSession.CreateOfferRedeemTransaction(feeRate);
 							
-							// TODO: Might wanna rephrase this log message.
-							Logs.Client.LogDebug("Puzzle solver protocol ended...");
-
 							//May need to find solution in the fulfillment transaction
 							Services.BlockExplorerService.TrackAsync(offerRedeem.PreviousScriptPubKey).GetAwaiter().GetResult();
 							Tracker.AddressCreated(cycle.Start, TransactionType.ClientOfferRedeem, SolverClientSession.GetInternalState().RedeemDestination, correlation);
@@ -553,31 +563,46 @@ namespace NTumbleBit.ClassicTumbler.Client
 								solutionKeys = alice.FulfillOffer(SolverClientSession.Id, offerSignature, aliceCashoutDestination);
 								SolverClientSession.CheckSolutions(solutionKeys);
 								var tumblingSolution = SolverClientSession.GetSolution();
-								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, SolverClientSession.Parameters.CurrentPuzzleNum);
+								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, SolverClientSession.GetInternalState().CurrentPuzzleNum);
 								Logs.Client.LogDebug("Got puzzle solution cooperatively from the tumbler");
-								// TODO [DESIGN]: Only switch to 'PuzzleSolutionObtained' if we are done with the puzzles, otherwise, keep on the same state.
-								Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
                                 //NOTE: Bob would cashout only in the cashOut phase, not in this phase.
-								
-								Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.TumblerCashout, correlation, new TrustedBroadcastRequest()
+
+                                // TODO: Before we broadcast here, we need to remove the previous broadcast request so that we gurantee that Bob will get the higher payment transaction.
+                                Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.TumblerCashout, correlation, new TrustedBroadcastRequest()
 								{
 									BroadcastAt = cycle.GetPeriods().ClientCashout.Start,
 									Transaction = transaction
 								});
-								if(Cooperative)
+
+                                if (Cooperative)
 								{
                                     // If Alice is Cooperative, we make T_cash and give it to the Tumbler
 									try
 									{
 										// No need to await for it, it is a just nice for the tumbler (we don't want the underlying socks connection cut before the escape key is sent)
-                                        // TODO: Figure out the last parameter here, the Tumbler probably have to provide a cashout address with sending back the offer information
-										var signature = SolverClientSession.SignEscape(feeRate, aliceCashoutDestination, new Key().ScriptPubKey);
+                                        // TODO[DONE]: Figure out the last parameter here, the Tumbler probably have to provide a cashout address with sending back the offer information
+										var signature = SolverClientSession.SignEscape(aliceCashoutDestination, offerInformation.EscapeCashout, offerInformation.Fee);
 										alice.GiveEscapeKeyAsync(SolverClientSession.Id, signature).GetAwaiter().GetResult();
 									}
-									catch(Exception ex) { Logs.Client.LogDebug(new EventId(), ex, "Exception while giving the escape key"); }
+                                    //NOTE: Since we are planning to send future escape transactions, if one failes, then we abort the Solver Protocol.
+									catch(Exception ex) { Logs.Client.LogDebug(new EventId(), ex, "Exception while giving the escape key"); Status = PaymentStateMachineStatus.PuzzleSolutionObtained; break; }
 									Logs.Client.LogInformation("Gave escape signature to the tumbler");
 								}
-							}
+                                // TODO [DESIGN]: Only switch to 'PuzzleSolutionObtained' if we are done with the puzzles, otherwise, keep on the same state.
+                                // TODO [DESIGN]: We need to add an additional check here so that Alice can interactively stop solving additional puzzles.
+                                if (!SolverClientSession.CanSolvePuzzles())
+                                {
+                                    // NOTE: This is the case that we have already solved all the puzzles, or just cant solve anymore.
+                                    Logs.Client.LogDebug("Puzzle solver protocol ended...");
+                                    Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
+                                }
+                                else
+                                {
+                                    // NOTE: If we want to solve an additional puzzle, we reset the Solver session state and we also reset the PaymentStateMachineStatus to go back up.
+                                    SolverClientSession.AllowPuzzleRequest();
+                                    Status = PaymentStateMachineStatus.TumblerChannelSecured;
+                                }
+                            }
 							catch(Exception ex)
 							{
 								Status = PaymentStateMachineStatus.UncooperativeTumbler;
@@ -598,9 +623,10 @@ namespace NTumbleBit.ClassicTumbler.Client
 								SolverClientSession.CheckSolutions(transactions.Select(t => t.Transaction).ToArray());
 								Logs.Client.LogInformation("Puzzle solution recovered from tumbler's fulfill transaction");
 								NeedSave = true;
+                                //NOTE[DESIGN]: If the Tumbler behavies Uncoopratively, then we end the solver protocol and just stop solving future puzzles.
 								Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
 								var tumblingSolution = SolverClientSession.GetSolution();
-								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, SolverClientSession.Parameters.CurrentPuzzleNum);
+								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, SolverClientSession.GetInternalState().CurrentPuzzleNum);
 								Tracker.TransactionCreated(cycle.Start, TransactionType.TumblerCashout, transaction.GetHash(), correlation);
 								Services.BroadcastService.BroadcastAsync(transaction).GetAwaiter().GetResult();
 							}
@@ -637,7 +663,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 
 		public bool ShouldStayConnected()
 		{
-			// TODO: Modify this to reflect the new conditions in the solver protocol
+			// TODO?: Modify this to reflect the new conditions in the solver protocol
 			if(ClientChannelNegotiation == null)
 				return false;
 
@@ -691,7 +717,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 					TODO (problem?): It seems that this function counts how many Bobs there are, but 
 						it depends on the amount of the transaction to figure out how many transactions there are.
 						The problem is that in this Mode, it's possible that each Bob escrows a diffrent amount of payments.
-						So we can't use the transaction amount as a filter, maybe use something else? (PubKey?)
+						So we can't use the transaction amount as a filter, maybe use something else? (PubKey of the Tumbler? If it's the same for each Bob?)
 				 */
 				var bobCount = Parameters.CountEscrows(tumblerTx.Transaction, Identity.Bob);
 				Logs.Client.LogInformation($"Tumbler escrow reached {cycle.SafetyPeriodDuration} confirmations");

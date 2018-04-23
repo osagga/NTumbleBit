@@ -93,8 +93,9 @@ namespace NTumbleBit.Tests
 					conf.ClassicTumblerParameters.FakeTransactionCount = 10;
 					conf.ClassicTumblerParameters.RealTransactionCount = 10;
 					conf.ClassicTumblerParameters.RealPuzzleCount = 2;
-					conf.ClassicTumblerParameters.AlicePaymentsCount = 3;
-					conf.ClassicTumblerParameters.BobPaymentsCount = 3;
+                    // NOTE: Modify the following two values for the number of payments when testing
+					conf.ClassicTumblerParameters.AlicePaymentsCount = 2;
+					conf.ClassicTumblerParameters.BobPaymentsCount = 5;
 					conf.ClassicTumblerParameters.CycleGenerator.FirstCycle.Start = 105;
 				}
 				else

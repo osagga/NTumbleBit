@@ -145,7 +145,12 @@ namespace NTumbleBit.PuzzleSolver
 			{
 				get; set;
 			}
-			public ServerCommitment[] Commitments
+            public int CurrentPuzzleNum
+            {
+                get; set;
+            } = 0;
+            
+            public ServerCommitment[] Commitments
 			{
 				get; set;
 			}
@@ -206,7 +211,7 @@ namespace NTumbleBit.PuzzleSolver
 		{
             AssertState(SolverClientStates.WaitingPuzzle);
 			// NOTE: -1 because we use it as an index (so we go from 0->PaymentsCount-1)
-			InternalState.Puzzle = Parameters.Puzzles[(Parameters.CurrentPuzzleNum-1)] ?? throw new ArgumentNullException(nameof(Parameters.CurrentPuzzleNum));
+			InternalState.Puzzle = Parameters.Puzzles[(InternalState.CurrentPuzzleNum-1)] ?? throw new ArgumentNullException(nameof(InternalState.CurrentPuzzleNum));
             InternalState.Status = SolverClientStates.WaitingGeneratePuzzles;
 		}
 
@@ -316,7 +321,7 @@ namespace NTumbleBit.PuzzleSolver
 
 			var escrowCoin = InternalState.EscrowedCoin;
 			
-			var aliceChange = ((Parameters.AliceRequestedPaymentsCount - Parameters.CurrentPuzzleNum) * Parameters.Denomination);
+			var aliceChange = ((Parameters.AliceRequestedPaymentsCount - InternalState.CurrentPuzzleNum) * Parameters.Denomination);
             
 			// NOTE: The Tumbler will take everything (The Tumbler's Fee plus j solutions Fees) besides the change Alive expects (Q-J)
 			var txOut = new TxOut((escrowCoin.Amount - aliceChange) - offerInformation.Fee, offerScript.WitHash.ScriptPubKey.Hash);
@@ -347,33 +352,31 @@ namespace NTumbleBit.PuzzleSolver
 			return signature;
 		}
 
-		public TransactionSignature SignEscape(FeeRate feeRate, Script aliceCashout, Script tumblerCashout)
+		public TransactionSignature SignEscape(Script aliceCashout, Script tumblerCashout, Money escapeFee)
 		{
             // NOTE: This function signes T_cash that directly gives 'J' payments to the Tumbler and 'Q-J' to Alice
             // TODO: Also we wouldn't be doing this step after we complete, we would do it while solving other puzzles.
             // NOTE: Changing the type of the signature here might make the Tumbler not able to combine all the T_cash transactions from all the Alices and make them one.
-            // TODO: Should we use new addresses for Alice and the Tumbler?
             AssertState(SolverClientStates.Completed);
 			var tx_cash = new Transaction();
-			tx_cash.Inputs.Add(new TxIn(InternalState.EscrowedCoin.Outpoint));
+			tx_cash.AddInput(new TxIn(InternalState.EscrowedCoin.Outpoint));
             tx_cash.Inputs[0].ScriptSig = new Script(
                 Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
                 Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
                 Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
                 );
-            // NOTE: I'm not sure if we need to "Witnessify" here, but I'll add it just in case.
-            tx_cash.Inputs[0].Witnessify();
             // Alice should expect to get "Q-J" payments back.
-            var alicePayment = (Parameters.AliceRequestedPaymentsCount - Parameters.CurrentPuzzleNum) * Parameters.Denomination;
-			tx_cash.Outputs.Add(new TxOut(InternalState.EscrowedCoin.Amount-alicePayment, tumblerCashout));
+            var alicePayment = (Parameters.AliceRequestedPaymentsCount - InternalState.CurrentPuzzleNum) * Parameters.Denomination;
+			tx_cash.AddOutput(new TxOut(InternalState.EscrowedCoin.Amount-alicePayment, tumblerCashout));
 			if (alicePayment > Money.Zero)
-            	tx_cash.Outputs.Add(new TxOut(alicePayment, aliceCashout));
-            tx_cash.Outputs[0].Value -= feeRate.GetFee(tx_cash.GetVirtualSize());
+            	tx_cash.AddOutput(new TxOut(alicePayment, aliceCashout));
+            tx_cash.Inputs[0].Witnessify();
+            tx_cash.Outputs[0].Value -= escapeFee;
             var escrow = EscrowScriptPubKeyParameters.GetFromCoin(InternalState.EscrowedCoin);
 			var coin = InternalState.EscrowedCoin.Clone();
 			coin.OverrideScriptCode(escrow.GetInitiatorScriptCode());
+            //NOTE: We use SIGHASH_SINGLE here so that Alice can gurantee the expected outputs and the Tumbler can also combine the transaction with the other Alices
             return tx_cash.SignInput(InternalState.EscrowKey, coin);
-            //return dummy.SignInput(InternalState.EscrowKey, coin, SigHash.None | SigHash.AnyoneCanPay);
 		}
 
 		public TrustedBroadcastRequest CreateOfferRedeemTransaction(FeeRate feeRate)
@@ -494,15 +497,23 @@ namespace NTumbleBit.PuzzleSolver
 			return InternalState.PuzzleSolution;
 		}
 
-        public bool NewPuzzleRequest()
+        public bool CanSolvePuzzles()
+        {
+            return (InternalState.CurrentPuzzleNum+1) <= Parameters.AliceRequestedPaymentsCount;
+        }
+
+        public void AcceptBobPuzzle()
+        {
+            AssertState(SolverClientStates.WaitingPuzzle);
+            InternalState.CurrentPuzzleNum++;
+            return;
+        }
+
+        public void AllowPuzzleRequest()
         {
             AssertState(SolverClientStates.Completed);
-            var canSolveMore = Parameters.CurrentPuzzleNum <= Parameters.AliceRequestedPaymentsCount;
-            if (canSolveMore)
-            {
-                InternalState.Status = SolverClientStates.WaitingPuzzle;                
-            }
-            return canSolveMore;
+            InternalState.Status = SolverClientStates.WaitingPuzzle;
+            return;
         }
 
         public override LockTime GetLockTime(CycleParameters cycle)
