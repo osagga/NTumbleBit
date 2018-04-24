@@ -518,7 +518,9 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			if(tumblerId == null)
 				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.PaymentPhase);
-			AssertNotDuplicateQuery(cycleId, channelId);
+            //NOTE: I inlcuded a third parameter here that would pass the puzzle number so that we can solve multiple puzzles for this specific 'cycleId' and 'channelId'
+            //NOTE: Maybe it's better to add a thrid parameter for 'AssertNotDuplicateQuery' instead of using the param 'name'
+            AssertNotDuplicateQuery(cycleId, channelId, session.GetInternalState().CurrentPuzzleNum.ToString());
 
             if (!session.CanSolvePuzzles())
             {

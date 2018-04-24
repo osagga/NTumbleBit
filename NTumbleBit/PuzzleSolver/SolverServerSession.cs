@@ -294,7 +294,7 @@ namespace NTumbleBit.PuzzleSolver
 			if(blindFactors == null)
 				throw new ArgumentNullException(nameof(blindFactors));
 			if(blindFactors.Length != Parameters.RealPuzzleCount)
-				throw new ArgumentException("Expecting " + Parameters.RealPuzzleCount + " blind factors");
+				throw new ArgumentException($"Expecting {Parameters.RealPuzzleCount} blind factors");
 			AssertState(SolverServerStates.WaitingBlindFactor);
 			Puzzle unblindedPuzzle = null;
 			int y = 0;
@@ -321,9 +321,9 @@ namespace NTumbleBit.PuzzleSolver
 			);
 			dummy.Inputs[0].Witnessify();
 			var alicePayment = ((Parameters.AliceRequestedPaymentsCount - InternalState.CurrentPuzzleNum) * Parameters.Denomination);
-			dummy.AddOutput(new TxOut(InternalState.EscrowedCoin.Amount - alicePayment, new Key().ScriptPubKey));
+			dummy.AddOutput(new TxOut(InternalState.EscrowedCoin.Amount - alicePayment, new Key().ScriptPubKey.Hash));
             if (alicePayment > Money.Zero)
-                dummy.AddOutput(new TxOut(alicePayment, new Key().ScriptPubKey));
+                dummy.AddOutput(new TxOut(alicePayment, new Key().ScriptPubKey.Hash));
 
             var offerTransactionFee = feeRate.GetFee(dummy.GetVirtualSize());
 
@@ -484,7 +484,7 @@ namespace NTumbleBit.PuzzleSolver
             	escapeTx.Outputs.Add(new TxOut(alicePayment, InternalState.AliceCashoutDestination));
 
             // TODO: This is a hacky fix for now, but I need to figure out why the fee is off by 2 bytes for each TxOut I add.
-			escapeTx.Outputs[0].Value -= feeRate.GetFee(escapeTx.GetVirtualSize() + (2 * escapeTx.Outputs.Count));
+			escapeTx.Outputs[0].Value -= feeRate.GetFee(escapeTx.GetVirtualSize());
 
 			AssertValidSignature(clientSignature, escapeTx);
 
