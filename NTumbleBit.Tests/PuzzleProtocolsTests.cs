@@ -330,7 +330,7 @@ namespace NTumbleBit.Tests
 				var offerRedeem = client.CreateOfferRedeemTransaction(FeeRate);
 
 				var offerTransaction = server.GetSignedOfferTransaction(clientEscrow.ScriptPubKey);
-                server.ConfigureAliceCashOutAddress(clientEscrow.ScriptPubKey);
+                server.ConfigureAliceCashOutAddress(clientEscrow.ScriptPubKey.Hash.ScriptPubKey);
 				var offerCoin = offerTransaction.Transaction.Outputs.AsCoins().First();
 				var resigned = offerTransaction.ReSign(client.EscrowedCoin);
 
@@ -357,8 +357,8 @@ namespace NTumbleBit.Tests
 				client.CheckSolutions(fulfill.Transaction);
 				RoundTrip(ref client, parameters);
 
-                var tumblerCashout = new Key().ScriptPubKey;
-                var clientEscapeSignature = client.SignEscape(clientEscrow.ScriptPubKey, tumblerCashout, offerInformation.Fee);
+                var tumblerCashout = new Key().ScriptPubKey.Hash.ScriptPubKey;
+                var clientEscapeSignature = client.SignEscape(clientEscrow.ScriptPubKey.Hash.ScriptPubKey, tumblerCashout, offerInformation.Fee);
 				var escapeTransaction = server.GetSignedEscapeTransaction(clientEscapeSignature, FeeRate, tumblerCashout);
 
 				txBuilder = new TransactionBuilder();

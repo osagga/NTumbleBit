@@ -412,6 +412,8 @@ namespace NTumbleBit.PuzzleSolver
 				throw new ArgumentNullException(nameof(feeRate));
 			if (aliceCashoutDestination == null)
 				throw new ArgumentNullException(nameof(aliceCashoutDestination));
+            if (cashout == null)
+                throw new ArgumentNullException(nameof(cashout));
 			AssertState(SolverServerStates.WaitingFulfillment);
 
 			var offer = GetUnsignedOfferTransaction(aliceCashoutDestination);
@@ -483,7 +485,6 @@ namespace NTumbleBit.PuzzleSolver
             if (alicePayment > Money.Zero)
             	escapeTx.Outputs.Add(new TxOut(alicePayment, InternalState.AliceCashoutDestination));
 
-            // TODO: This is a hacky fix for now, but I need to figure out why the fee is off by 2 bytes for each TxOut I add.
 			escapeTx.Outputs[0].Value -= feeRate.GetFee(escapeTx.GetVirtualSize());
 
 			AssertValidSignature(clientSignature, escapeTx);
