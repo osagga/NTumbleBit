@@ -651,8 +651,6 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			
 			fulfill.BroadcastAt = new LockTime(cycle.GetPeriods().Payment.End - 1);
 
-			Repository.Save(cycle.Start, session);
-
 			var signedOffer = session.GetSignedOfferTransaction(aliceCashoutDestination);
 			signedOffer.BroadcastAt = fulfill.BroadcastAt - 1;
 			var correlation = GetCorrelation(session);

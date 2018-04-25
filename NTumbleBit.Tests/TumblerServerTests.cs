@@ -229,12 +229,12 @@ namespace NTumbleBit.Tests
 					Assert.True(machine.ShouldStayConnected());
 					if(cooperativeClient)
 					{
+                        //Escape should be mined (when everyone is acting cooperatively)
                         server.MineTo(server.TumblerNode, cycle, CyclePhase.TumblerCashoutPhase);
-                        //Escape should be mined
-                        Thread.Sleep(10000);
-						block = server.TumblerNode.FindBlock(1).First();
+                        Thread.Sleep(1000);
+                        var escape_transaction = server.ServerRuntime.Services.TrustedBroadcastService.TryBroadcast();
+                        block = server.TumblerNode.FindBlock(1).First();
 						Assert.Equal(2, block.Transactions.Count);
-
 						serverTracker.AssertKnown(TransactionType.ClientEscape, block.Transactions[1].GetHash());
 						serverTracker.AssertKnown(TransactionType.ClientEscape, block.Transactions[1].Outputs[0].ScriptPubKey);
 					}
@@ -278,7 +278,8 @@ namespace NTumbleBit.Tests
 				else
 					//Received the solution from the blockchain, the transaction has not been planned in advance
 					transactions = server.ClientRuntime.Services.BroadcastService.TryBroadcast();
-				Assert.Single(transactions);
+
+                Assert.Single(transactions);
 				Assert.True(machine.ShouldStayConnected());
 				block = server.AliceNode.FindBlock().First();
 				//Should contains TumblerCashout

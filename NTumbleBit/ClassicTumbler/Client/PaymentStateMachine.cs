@@ -557,8 +557,8 @@ namespace NTumbleBit.ClassicTumbler.Client
 							Services.BlockExplorerService.TrackAsync(offerRedeem.PreviousScriptPubKey).GetAwaiter().GetResult();
 							Tracker.AddressCreated(cycle.Start, TransactionType.ClientOfferRedeem, SolverClientSession.GetInternalState().RedeemDestination, correlation);
 
+                            // NOTE: Here we update Tx_offerRedeem or T_puzzle redeem to reflect giving Alice the highest amount of refund.
                             Services.TrustedBroadcastService.RemoveBroadcast(SolverClientSession.GetInternalState().Tx_offerRedeem);
-                            // TODO: It seems like offerRedeem is broadcasted instintally, so if we would want to lock it, when would we do that?
                             Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientOfferRedeem, correlation, offerRedeem);
                             SolverClientSession.SetofferRedeemTransaction(offerRedeem.Transaction);
 
@@ -572,11 +572,13 @@ namespace NTumbleBit.ClassicTumbler.Client
                                 Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
                                 // TODO: Before we broadcast here, we need to remove the previous broadcast request so that we gurantee that Bob will get the higher payment transaction.
                                 //NOTE: Bob would cashout only in the cashOut phase, not in this phase.
+                                Services.TrustedBroadcastService.RemoveBroadcast(PromiseClientSession.GetInternalState().Tx_cashout);
                                 Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.TumblerCashout, correlation, new TrustedBroadcastRequest()
 								{
 									BroadcastAt = cycle.GetPeriods().ClientCashout.Start,
 									Transaction = transaction
 								});
+                                PromiseClientSession.SetCashoutTransaction(transaction);
 
                                 if (Cooperative)
 								{

@@ -169,6 +169,12 @@ namespace NTumbleBit.PuzzlePromise
                 get;
                 set;
             }
+            // NOTE: This stores the most recent cash-out transaction for Bob
+            public Transaction Tx_cashout
+            {
+                get;
+                set;
+            }
         }
 
         private readonly PromiseParameters _Parameters;
@@ -570,6 +576,12 @@ namespace NTumbleBit.PuzzlePromise
             if (tx == null)
                 throw new PuzzleException($"Wrong solution for the puzzle {paymentNumber}");
             return tx;
+        }
+
+        public void SetCashoutTransaction(Transaction transaction)
+        {
+            InternalState.Tx_cashout = transaction;
+            return;
         }
 
         public byte[] getPrevEpsilons(int PaymentNumber, int RealTransactionHash){
