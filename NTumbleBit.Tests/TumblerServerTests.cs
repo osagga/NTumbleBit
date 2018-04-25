@@ -340,7 +340,7 @@ namespace NTumbleBit.Tests
 
 		private void WaitStatus(PaymentStateMachine machine, PaymentStateMachineStatus state)
 		{
-			CancellationTokenSource cts = new CancellationTokenSource(10000);
+			CancellationTokenSource cts = new CancellationTokenSource(100000);
 			while(machine.Status != state)
 			{
 				machine.Update();
@@ -406,7 +406,7 @@ namespace NTumbleBit.Tests
 				Assert.Equal(PaymentStateMachineStatus.TumblerChannelCreating, machine.Status);
 
 				//Wait escrow broadcasted
-				Thread.Sleep(1000);
+				Thread.Sleep(5000);
 
 				//Make sure the tumbler escrow is broadcasted an mined
 				var broadcasted = server.ServerRuntime.Services.BroadcastService.TryBroadcast();

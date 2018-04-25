@@ -9,7 +9,8 @@ namespace NTumbleBit.Services
     public interface ITrustedBroadcastService
     {
 		void Broadcast(int cycleStart, TransactionType transactionType, CorrelationId correlation, TrustedBroadcastRequest broadcast);
-		TrustedBroadcastRequest GetKnownTransaction(uint256 txId);
+        void Remove();
+        TrustedBroadcastRequest GetKnownTransaction(uint256 txId);
 		Transaction[] TryBroadcast(ref uint256[] knownBroadcasted);
 		Transaction[] TryBroadcast();
 

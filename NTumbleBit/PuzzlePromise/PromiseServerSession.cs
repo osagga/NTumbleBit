@@ -121,7 +121,6 @@ namespace NTumbleBit.PuzzlePromise
 
         public ServerCommitment[][] SignHashes(SignaturesRequest sigRequest)
         {
-            // Almost done, just need to confirm a typo and a function.
             // Step 5
 
             if (sigRequest == null)

@@ -518,8 +518,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			if(tumblerId == null)
 				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.PaymentPhase);
-            //NOTE: I inlcuded a third parameter here that would pass the puzzle number so that we can solve multiple puzzles for this specific 'cycleId' and 'channelId'
-            //NOTE: Maybe it's better to add a thrid parameter for 'AssertNotDuplicateQuery' instead of using the param 'name'
+            //NOTE: I included a third parameter here that would pass the puzzle number so that we can solve multiple puzzles for this specific 'cycleId' and 'channelId'
             AssertNotDuplicateQuery(cycleId, channelId, session.GetInternalState().CurrentPuzzleNum.ToString());
 
             if (!session.CanSolvePuzzles())
@@ -552,7 +551,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.PaymentPhase);
 			if(session.Status != SolverServerStates.WaitingCommitmentDelivery)
 				return null;
-			AssertNotDuplicateQuery(cycleId, channelId);
+			AssertNotDuplicateQuery(cycleId, channelId, session.GetInternalState().CurrentPuzzleNum.ToString());
 			var commitments = session.EndSolvePuzzles();
 			Repository.Save(cycleId, session);
 			return commitments;
@@ -563,9 +562,9 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			var unused = _ThreadPool.DoAsync(act);
 		}
 
-		private void AssertNotDuplicateQuery(int cycleId, uint160 channelId, [CallerMemberName]string name = null)
+		private void AssertNotDuplicateQuery(int cycleId, uint160 channelId, string puzzleNum = "", [CallerMemberName]string name = null)
 		{
-			var h = Hashes.Hash160(Encoding.UTF8.GetBytes(channelId.ToString() + name));
+			var h = Hashes.Hash160(Encoding.UTF8.GetBytes(channelId.ToString() + puzzleNum + name));
 			if(!Repository.MarkUsedNonce(cycleId, h))
 				throw new ActionResultException(BadRequest("duplicate-query"));
 		}
@@ -583,7 +582,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			if(tumblerId == null)
 				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.PaymentPhase);
-			AssertNotDuplicateQuery(cycleId, channelId);
+			AssertNotDuplicateQuery(cycleId, channelId, session.GetInternalState().CurrentPuzzleNum.ToString());
 			var solutions = session.CheckRevelation(revelation);
 			Repository.Save(cycleId, session);
 			return solutions;
@@ -600,7 +599,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			if(tumblerId == null)
 				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.PaymentPhase);
-			AssertNotDuplicateQuery(cycleId, channelId);
+			AssertNotDuplicateQuery(cycleId, channelId, session.GetInternalState().CurrentPuzzleNum.ToString());
 			var feeRate = await Services.FeeService.GetFeeRateAsync();
 			// TODO[DONE]: The offerCoin reflects the correct Amount that the Tumbler should receive.
 			var fulfillKey = session.CheckBlindedFactors(blindFactors, feeRate);
@@ -635,7 +634,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 				throw new ActionResultException(BadRequest("Missing Signature"));
 
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.TumblerCashoutPhase);
-			AssertNotDuplicateQuery(cycleId, channelId);
+			AssertNotDuplicateQuery(cycleId, channelId, session.GetInternalState().CurrentPuzzleNum.ToString());
 
 			var feeRate = await Services.FeeService.GetFeeRateAsync();
 
@@ -700,7 +699,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
              *      another T_cash with a higher output value for the Tumbler.
              *  TODO:
              *      - Delete T_puzzle, T_offer and T_cash from the Repo.
-             *  Optional improvments:
+             *  Optional improvements:
              *      - Make the Tumbler combine all the T_cash transacations from different Alices so that we only need to brodcast one Transaction for all Alices.
             */
 
@@ -708,7 +707,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 			if(tumblerId == null)
 				throw new ArgumentNullException(nameof(tumblerId));
 			var session = GetSolverServerSession(cycleId, channelId, CyclePhase.TumblerCashoutPhase);
-			AssertNotDuplicateQuery(cycleId, channelId);
+			AssertNotDuplicateQuery(cycleId, channelId, session.GetInternalState().CurrentPuzzleNum.ToString());
 
             var cycle = GetCycle(cycleId);
             var correlation = GetCorrelation(session);

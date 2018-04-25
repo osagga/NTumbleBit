@@ -565,9 +565,9 @@ namespace NTumbleBit.ClassicTumbler.Client
 								var tumblingSolution = SolverClientSession.GetSolution();
 								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, SolverClientSession.GetInternalState().CurrentPuzzleNum);
 								Logs.Client.LogDebug("Got puzzle solution cooperatively from the tumbler");
-                                //NOTE: Bob would cashout only in the cashOut phase, not in this phase.
-
+                                Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
                                 // TODO: Before we broadcast here, we need to remove the previous broadcast request so that we gurantee that Bob will get the higher payment transaction.
+                                //NOTE: Bob would cashout only in the cashOut phase, not in this phase.
                                 Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.TumblerCashout, correlation, new TrustedBroadcastRequest()
 								{
 									BroadcastAt = cycle.GetPeriods().ClientCashout.Start,
@@ -585,23 +585,28 @@ namespace NTumbleBit.ClassicTumbler.Client
 										alice.GiveEscapeKeyAsync(SolverClientSession.Id, signature).GetAwaiter().GetResult();
 									}
                                     //NOTE: Since we are planning to send future escape transactions, if one failes, then we abort the Solver Protocol.
-									catch(Exception ex) { Logs.Client.LogDebug(new EventId(), ex, "Exception while giving the escape key"); Status = PaymentStateMachineStatus.PuzzleSolutionObtained; break; }
+									catch(Exception ex)
+                                    {
+                                        Logs.Client.LogWarning(new EventId(), ex, "Exception while giving the escape key");
+                                        Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
+                                        Logs.Client.LogDebug("Puzzle solver protocol ended...");
+                                        break;
+                                    }
 									Logs.Client.LogInformation("Gave escape signature to the tumbler");
-								}
-                                // TODO [DESIGN]: Only switch to 'PuzzleSolutionObtained' if we are done with the puzzles, otherwise, keep on the same state.
-                                // TODO [DESIGN]: We need to add an additional check here so that Alice can interactively stop solving additional puzzles.
-                                if (!SolverClientSession.CanSolvePuzzles())
-                                {
-                                    // NOTE: This is the case that we have already solved all the puzzles, or just cant solve anymore.
-                                    Logs.Client.LogDebug("Puzzle solver protocol ended...");
-                                    Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
+                                    
+                                    if (SolverClientSession.CanSolvePuzzles())
+                                    {
+                                        // NOTE: If we want to solve an additional puzzle, we reset the Solver session state and we also reset the PaymentStateMachineStatus to go back up.
+                                        SolverClientSession.AllowPuzzleRequest();
+                                        Status = PaymentStateMachineStatus.TumblerChannelSecured;
+                                    }
+                                    else
+                                    {
+                                        // NOTE: This is the case that we have already solved all the puzzles, or just cant solve anymore.                                        
+                                        Logs.Client.LogDebug("Puzzle solver protocol ended...");
+                                    }
                                 }
-                                else
-                                {
-                                    // NOTE: If we want to solve an additional puzzle, we reset the Solver session state and we also reset the PaymentStateMachineStatus to go back up.
-                                    SolverClientSession.AllowPuzzleRequest();
-                                    Status = PaymentStateMachineStatus.TumblerChannelSecured;
-                                }
+                                
                             }
 							catch(Exception ex)
 							{
@@ -623,7 +628,7 @@ namespace NTumbleBit.ClassicTumbler.Client
 								SolverClientSession.CheckSolutions(transactions.Select(t => t.Transaction).ToArray());
 								Logs.Client.LogInformation("Puzzle solution recovered from tumbler's fulfill transaction");
 								NeedSave = true;
-                                //NOTE[DESIGN]: If the Tumbler behavies Uncoopratively, then we end the solver protocol and just stop solving future puzzles.
+                                //NOTE[DESIGN]: If the Tumbler behaves Uncooperative, then we end the solver protocol and just stop solving future puzzles.
 								Status = PaymentStateMachineStatus.PuzzleSolutionObtained;
 								var tumblingSolution = SolverClientSession.GetSolution();
 								var transaction = PromiseClientSession.GetSignedTransaction(tumblingSolution, SolverClientSession.GetInternalState().CurrentPuzzleNum);
@@ -663,7 +668,6 @@ namespace NTumbleBit.ClassicTumbler.Client
 
 		public bool ShouldStayConnected()
 		{
-			// TODO?: Modify this to reflect the new conditions in the solver protocol
 			if(ClientChannelNegotiation == null)
 				return false;
 

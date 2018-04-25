@@ -121,7 +121,12 @@ namespace NTumbleBit.Services.RPC
 			Repository.UpdateOrInsert("TrustedBroadcasts", broadcast.Request.Transaction.GetHash().ToString(), broadcast, (o, n) => n);
 		}
 
-		private readonly IRepository _Repository;
+        public void RemoveBroadcast(Transaction transaction)
+        {
+            Repository.Delete<Record>("TrustedBroadcasts", transaction.GetHash().ToString());
+        }
+
+        private readonly IRepository _Repository;
 		public IRepository Repository
 		{
 			get
