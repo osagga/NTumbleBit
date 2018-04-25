@@ -204,7 +204,7 @@ namespace NTumbleBit.Tests
 
 				Assert.Equal(PaymentStateMachineStatus.TumblerChannelCreating, machine.Status);
 				//Wait escrow broadcasted
-				Thread.Sleep(5000);
+				Thread.Sleep(9000);
 				server.TumblerNode.Generate(1);
 				machine.Update();
 				Assert.Equal(PaymentStateMachineStatus.TumblerChannelCreated, machine.Status);
@@ -248,13 +248,12 @@ namespace NTumbleBit.Tests
 					}
 				}
 
-				server.MineTo(server.TumblerNode, cycle, CyclePhase.PaymentPhase, true);
-
 				Transaction[] transactions = null;
 				if(!cooperativeClient || !cooperativeTumbler)
 				{
-					//Offer + Fulfill should be broadcasted
-					transactions = server.ServerRuntime.Services.TrustedBroadcastService.TryBroadcast();
+                    server.MineTo(server.TumblerNode, cycle, CyclePhase.PaymentPhase, true);
+                    //Offer + Fulfill should be broadcasted
+                    transactions = server.ServerRuntime.Services.TrustedBroadcastService.TryBroadcast();
 					Assert.Equal(2, transactions.Length);
 
 					//Sanity check if trusted broadcaster know about this
