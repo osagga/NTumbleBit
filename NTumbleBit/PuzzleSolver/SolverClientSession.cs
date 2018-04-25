@@ -173,7 +173,13 @@ namespace NTumbleBit.PuzzleSolver
 				get;
 				set;
 			}
-		}
+
+            public Transaction Tx_offerRedeem
+            {
+                get;
+                set;
+            }
+        }
 
 
 		public SolverParameters Parameters
@@ -207,7 +213,13 @@ namespace NTumbleBit.PuzzleSolver
 			InternalState.Status = SolverClientStates.WaitingPuzzle;
 		}
 
-		public void AcceptPuzzle()
+        public void SetofferRedeemTransaction(Transaction transaction)
+        {
+            InternalState.Tx_offerRedeem = transaction;
+            return;
+        }
+
+        public void AcceptPuzzle()
 		{
             AssertState(SolverClientStates.WaitingPuzzle);
 			// NOTE: -1 because we use it as an index (so we go from 0->PaymentsCount-1)

@@ -556,9 +556,13 @@ namespace NTumbleBit.ClassicTumbler.Client
 							//May need to find solution in the fulfillment transaction
 							Services.BlockExplorerService.TrackAsync(offerRedeem.PreviousScriptPubKey).GetAwaiter().GetResult();
 							Tracker.AddressCreated(cycle.Start, TransactionType.ClientOfferRedeem, SolverClientSession.GetInternalState().RedeemDestination, correlation);
-							Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientOfferRedeem, correlation, offerRedeem);
-							
-							try
+
+                            Services.TrustedBroadcastService.RemoveBroadcast(SolverClientSession.GetInternalState().Tx_offerRedeem);
+                            // TODO: It seems like offerRedeem is broadcasted instintally, so if we would want to lock it, when would we do that?
+                            Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientOfferRedeem, correlation, offerRedeem);
+                            SolverClientSession.SetofferRedeemTransaction(offerRedeem.Transaction);
+
+                            try
 							{
 								solutionKeys = alice.FulfillOffer(SolverClientSession.Id, offerSignature, aliceCashoutDestination);
 								SolverClientSession.CheckSolutions(solutionKeys);

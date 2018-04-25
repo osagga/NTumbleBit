@@ -103,7 +103,25 @@ namespace NTumbleBit.PuzzleSolver
 				set;
 			}
 
-			public PubKey GetClientEscrowPubKey()
+            public Transaction Tx_offer
+            {
+                get;
+                set;
+            }
+
+            public Transaction Tx_fulfill
+            {
+                get;
+                set;
+            }
+
+            public Transaction Tx_escape
+            {
+                get;
+                set;
+            }
+
+            public PubKey GetClientEscrowPubKey()
 			{
 				return EscrowScriptPubKeyParameters.GetFromCoin(EscrowedCoin).Initiator;
 			}
@@ -394,6 +412,27 @@ namespace NTumbleBit.PuzzleSolver
 			AssertState(SolverServerStates.WaitingEscape);
 			return InternalState.SolvedPuzzles.Select(s => s.SolutionKey).ToArray();
 		}
+
+        public void SetEscapeTransaction(Transaction transaction)
+        {
+            AssertState(SolverServerStates.Completed);
+            InternalState.Tx_escape = transaction;
+            return;
+        }
+
+        public void SetOfferTransaction(Transaction transaction)
+        {
+            AssertState(SolverServerStates.WaitingEscape);
+            InternalState.Tx_offer = transaction;
+            return;
+        }
+
+        public void SetFulfillTransaction(Transaction transaction)
+        {
+            AssertState(SolverServerStates.WaitingEscape);
+            InternalState.Tx_fulfill = transaction;
+            return;
+        }
 
         private void AssertState(SolverServerStates state)
 		{

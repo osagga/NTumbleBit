@@ -229,8 +229,9 @@ namespace NTumbleBit.Tests
 					Assert.True(machine.ShouldStayConnected());
 					if(cooperativeClient)
 					{
-						//Escape should be mined
-						Thread.Sleep(10000);
+                        server.MineTo(server.TumblerNode, cycle, CyclePhase.TumblerCashoutPhase);
+                        //Escape should be mined
+                        Thread.Sleep(10000);
 						block = server.TumblerNode.FindBlock(1).First();
 						Assert.Equal(2, block.Transactions.Count);
 

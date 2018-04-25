@@ -123,7 +123,9 @@ namespace NTumbleBit.Services.RPC
 
         public void RemoveBroadcast(Transaction transaction)
         {
-            Repository.Delete<Record>("TrustedBroadcasts", transaction.GetHash().ToString());
+            // NOTE: This function assumes that if the transaction is removed, it won't be broadcasted if its locktime wasen't reached yet.
+            if (transaction != null)
+                Repository.Delete<Record>("TrustedBroadcasts", transaction.GetHash().ToString());
         }
 
         private readonly IRepository _Repository;

@@ -664,17 +664,22 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 
 			Tracker.AddressCreated(cycle.Start, TransactionType.ClientOffer, offerScriptPubKey, correlation);
 
-			// TODO: We don't really want to Broadcast anything yet, we want to only broadcast the last Transaction with the highest value.
-			Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientOffer, correlation, signedOffer);
+            Services.TrustedBroadcastService.RemoveBroadcast(session.GetInternalState().Tx_offer);
+            Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientOffer, correlation, signedOffer);
+            session.SetOfferTransaction(signedOffer.Transaction);
 
-			Tracker.AddressCreated(cycle.Start, TransactionType.ClientFulfill, cashout.ScriptPubKey, correlation);
+            Tracker.AddressCreated(cycle.Start, TransactionType.ClientFulfill, cashout.ScriptPubKey, correlation);
 
 			if(!Runtime.NoFulFill)
 			{
-				// TODO: We don't really want to Broadcast anything yet, we want to only broadcast the last Transaction with the highest value.
-				Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientFulfill, correlation, fulfill);
-			}
-			return Runtime.Cooperative ? session.GetSolutionKeys() : new SolutionKey[0];
+                Services.TrustedBroadcastService.RemoveBroadcast(session.GetInternalState().Tx_fulfill);
+                Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientFulfill, correlation, fulfill);
+                session.SetFulfillTransaction(fulfill.Transaction);
+            }
+
+            Repository.Save(cycle.Start, session);
+
+            return Runtime.Cooperative ? session.GetSolutionKeys() : new SolutionKey[0];
 		}
 
 		private static CorrelationId GetCorrelation(SolverServerSession session)
@@ -697,8 +702,6 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
              *      and instead plan to broadcast T_cash in the cashoutPhase for the Tumbler.
              *      The reason why the Tumbler shouldn't broadcast T_cash immediatly is becasue Alice might want to solve more puzzles, therefore Alice is expected to send
              *      another T_cash with a higher output value for the Tumbler.
-             *  TODO:
-             *      - Delete T_puzzle, T_offer and T_cash from the Repo.
              *  Optional improvements:
              *      - Make the Tumbler combine all the T_cash transacations from different Alices so that we only need to brodcast one Transaction for all Alices.
             */
@@ -718,14 +721,16 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
 
             if (Repository.MarkUsedNonce(cycleId, new uint160(tx.GetHash().ToBytes().Take(20).ToArray())))
             {
-                //TODO: Here we need to remove the previous T_cash so that we only broadcast the one with the highest value to the Tumbler.
-
-                await Services.BroadcastService.BroadcastAsync(tx);
-                //Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientEscape, correlation, new TrustedBroadcastRequest()
-                //{
-                //    BroadcastAt = cycle.GetPeriods().TumblerCashout.Start,
-                //    Transaction = tx
-                //});
+                //TODO[DONE]: Here we need to remove the previous T_puzzle, T_offer and T_cash so that we only broadcast the one with the highest value to the Tumbler.
+                Services.TrustedBroadcastService.RemoveBroadcast(session.GetInternalState().Tx_escape);
+                Services.TrustedBroadcastService.RemoveBroadcast(session.GetInternalState().Tx_offer);
+                Services.TrustedBroadcastService.RemoveBroadcast(session.GetInternalState().Tx_fulfill);
+                Services.TrustedBroadcastService.Broadcast(cycle.Start, TransactionType.ClientEscape, correlation, new TrustedBroadcastRequest()
+                {
+                    BroadcastAt = cycle.GetPeriods().TumblerCashout.Start,
+                    Transaction = tx
+                });
+                session.SetEscapeTransaction(tx);
             }
 
             if (session.CanSolvePuzzles())
@@ -733,6 +738,7 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
                 // NOTE: This changes the internal session state from "Completed" to "WaitingPuzzles" to allow Alice to call "BeginSolvePuzzles" again for the next puzzle
                 session.AllowPuzzleRequest();
             }
+
             Repository.Save(cycle.Start, session);
 
             //var state = session.GetInternalState();
