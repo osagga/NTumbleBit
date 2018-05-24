@@ -314,11 +314,15 @@ namespace NTumbleBit.PuzzlePromise
                     Op.GetPushOp(InternalState.EscrowedCoin.Redeem.ToBytes())
                 );
                 cashout.Inputs[0].Witnessify();
+
                 var tumblerChange = InternalState.EscrowedCoin.Amount - ((i + 1) * Parameters.Denomination);
                 cashout.AddOutput(InternalState.EscrowedCoin.Amount - tumblerChange, cashoutDestination);
+
                 if (tumblerChange > Money.Zero)
                     cashout.AddOutput(tumblerChange, InternalState.TumblerCashoutDestination);
-                var cashoutFee = feeRate.GetFee(cashout.GetVirtualSize());
+
+                var cashoutFee = (feeRate.GetFee(cashout.GetVirtualSize()) * InternalState.FeeFactor);
+
                 cashout.Outputs[0].Value -= cashoutFee;
                 cashoutFees[i] = (uint) cashoutFee.Satoshi;
                 _cashouts[i] = cashout;

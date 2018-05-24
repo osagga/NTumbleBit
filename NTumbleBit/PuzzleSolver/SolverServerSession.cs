@@ -343,7 +343,8 @@ namespace NTumbleBit.PuzzleSolver
             if (alicePayment > Money.Zero)
                 dummy.AddOutput(new TxOut(alicePayment, new Key().ScriptPubKey.Hash));
 
-            var offerTransactionFee = feeRate.GetFee(dummy.GetVirtualSize());
+            // Modify the fee used for both the T_offer and T_cash since both of them will not be spent immediatly, therefore the fee should be higher.
+            var offerTransactionFee = (feeRate.GetFee(dummy.GetVirtualSize()) * InternalState.FeeFactor);
 
 
 			var escrow = InternalState.EscrowedCoin;
@@ -476,7 +477,9 @@ namespace NTumbleBit.PuzzleSolver
 			var fulfillScript = SolverScriptBuilder.CreateFulfillScript(null, solutions);
 			fulfill.Inputs[0].ScriptSig = fulfillScript + Op.GetPushOp(InternalState.OfferCoin.Redeem.ToBytes());
 			fulfill.Inputs[0].Witnessify();
-			fulfill.Outputs[0].Value -= feeRate.GetFee(fulfill.GetVirtualSize());
+
+            // T_solve (T_fulfill) should also have an amplified fee since it will be brodcasted in the future
+			fulfill.Outputs[0].Value -= (feeRate.GetFee(fulfill.GetVirtualSize()) * InternalState.FeeFactor);
     
 			InternalState.OfferClientSignature = clientSignature;
 			InternalState.Status = SolverServerStates.WaitingEscape;
@@ -524,7 +527,8 @@ namespace NTumbleBit.PuzzleSolver
             if (alicePayment > Money.Zero)
             	escapeTx.Outputs.Add(new TxOut(alicePayment, InternalState.AliceCashoutDestination));
 
-			escapeTx.Outputs[0].Value -= feeRate.GetFee(escapeTx.GetVirtualSize());
+            // Here we should increase the fee since this transaction is expected to be spent after the payment phase is over.
+			escapeTx.Outputs[0].Value -= (feeRate.GetFee(escapeTx.GetVirtualSize()) * InternalState.FeeFactor);
 
 			AssertValidSignature(clientSignature, escapeTx);
 
