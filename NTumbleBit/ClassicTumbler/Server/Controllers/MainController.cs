@@ -608,13 +608,13 @@ namespace NTumbleBit.ClassicTumbler.Server.Controllers
             var cycle = GetCycle(cycleId);
 
             // TODO: Check if we actually want this to be "ConfigureAwait(false)"
-            var cashout = await Services.WalletService.GenerateAddressAsync().ConfigureAwait(false);
+            var cashoutAddress = await Services.WalletService.GenerateAddressAsync().ConfigureAwait(false);
             // Save the cashout destination internally.
-            session.ConfigureTumblerCashOutAddress(cashout.ScriptPubKey);
+            session.ConfigureTumblerCashOutAddress(cashoutAddress.ScriptPubKey);
             // TODO: Check if the Type of the address here is ok (it doesn't assume anything)
-            Tracker.AddressCreated(cycle.Start, TransactionType.ClientEscape, cashout.ScriptPubKey, correlation);
+            Tracker.AddressCreated(cycle.Start, TransactionType.ClientEscape, cashoutAddress.ScriptPubKey, correlation);
             // Send the cashout to Alice so that it can be used in the escape transaction.
-            fulfillKey.EscapeCashout = cashout.ScriptPubKey;
+            fulfillKey.EscapeCashout = cashoutAddress.ScriptPubKey;
             Repository.Save(cycleId, session);
 			return fulfillKey;
 		}

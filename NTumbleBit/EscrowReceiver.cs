@@ -23,10 +23,19 @@ namespace NTumbleBit
 				set;
 			}
 
-			/// <summary>
-			/// Identify the channel to the tumbler
+            /// <summary>
+			/// Amount by which the transaction fee will be amplified.
 			/// </summary>
-			public uint160 ChannelId
+            public int FeeFactor
+            {
+                get;
+                set;
+            } = 5;
+
+            /// <summary>
+            /// Identify the channel to the tumbler
+            /// </summary>
+            public uint160 ChannelId
 			{
 				get;
 				set;

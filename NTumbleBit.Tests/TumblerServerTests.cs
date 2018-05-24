@@ -297,15 +297,20 @@ namespace NTumbleBit.Tests
 
 
 				var allTransactions = server.AliceNode.CreateNodeClient().GetBlocks().SelectMany(b => b.Transactions).ToDictionary(t => t.GetHash());
-				var expectedRate = new FeeRate(100, 1);
+
+                // Checking the fee rates
+
+                // The amount by which we estimate the fees are going to be higher
+                var futureFeeFactor = 5;
+
+                // Tumbler side fees
+
+                // Here we check the fee rate for the immediate transactions
+                var expectedRate = new FeeRate(100, 1);
 
 				foreach(var txId in new[]
 				{
-					TransactionType.ClientEscape,
 					TransactionType.TumblerEscrow,
-					TransactionType.TumblerRedeem,
-					TransactionType.ClientOffer,
-					TransactionType.ClientFulfill,
 				}.SelectMany(r => serverTracker.GetRecords(cycle.Start).Where(t => t.RecordType == RecordType.Transaction && t.TransactionType == r)))
 				{
 					if(txId != null)
@@ -317,14 +322,33 @@ namespace NTumbleBit.Tests
 					}
 				}
 
+                // Here we check the fee rate for the transactions that were not broadcasted immediatly.
+                var futureExpectedRate = new FeeRate(100 * futureFeeFactor, 1);
 
-				expectedRate = new FeeRate(50, 1);
-				foreach(var txId in new[]
+                foreach (var txId in new[]
+                {
+                    TransactionType.ClientEscape,
+                    TransactionType.TumblerRedeem,
+                    TransactionType.ClientOffer,
+                    TransactionType.ClientFulfill,
+                }.SelectMany(r => serverTracker.GetRecords(cycle.Start).Where(t => t.RecordType == RecordType.Transaction && t.TransactionType == r)))
+                {
+                    if (txId != null)
+                    {
+                        var tx = allTransactions.TryGet(txId.TransactionId) ??
+                            server.ServerRuntime.Services.TrustedBroadcastService.GetKnownTransaction(txId.TransactionId)?.Transaction ?? server.ServerRuntime.Services.BroadcastService.GetKnownTransaction(txId.TransactionId);
+                        if (tx != null)
+                            AssertRate(allTransactions, futureExpectedRate, tx);
+                    }
+                }
+
+                // Client side fees
+
+                expectedRate = new FeeRate(50, 1);
+
+                foreach (var txId in new[]
 				{
-					TransactionType.ClientEscrow,
-					TransactionType.ClientRedeem,
-					TransactionType.ClientOfferRedeem,
-					TransactionType.TumblerCashout
+					TransactionType.ClientEscrow
 				}.SelectMany(r => clientTracker.GetRecords(cycle.Start).Where(t => t.RecordType == RecordType.Transaction && t.TransactionType == r)))
 				{
 					if(txId != null)
@@ -336,7 +360,26 @@ namespace NTumbleBit.Tests
 							AssertRate(allTransactions, expectedRate, tx);
 					}
 				}
-			}
+
+                futureExpectedRate = new FeeRate(50 * futureFeeFactor, 1);
+
+                foreach (var txId in new[]
+                {
+                    TransactionType.ClientRedeem,
+                    TransactionType.ClientOfferRedeem,
+                    TransactionType.TumblerCashout
+                }.SelectMany(r => clientTracker.GetRecords(cycle.Start).Where(t => t.RecordType == RecordType.Transaction && t.TransactionType == r)))
+                {
+                    if (txId != null)
+                    {
+                        var tx = allTransactions.TryGet(txId.TransactionId) ??
+                            server.ClientRuntime.Services.TrustedBroadcastService.GetKnownTransaction(txId.TransactionId)?.Transaction ?? server.ClientRuntime.Services.BroadcastService.GetKnownTransaction(txId.TransactionId);
+                        if (tx != null
+                             && tx.Inputs[0].PrevOut.Hash != uint256.Zero) //Client offer redeem, as it is broadcasted to the trusted broadcaster before offer is known
+                            AssertRate(allTransactions, futureExpectedRate, tx);
+                    }
+                }
+            }
 		}
 
 		private void WaitStatus(PaymentStateMachine machine, PaymentStateMachineStatus state)

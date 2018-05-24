@@ -404,7 +404,9 @@ namespace NTumbleBit.PuzzleSolver
 				Op.GetPushOp(TrustedBroadcastRequest.PlaceholderSignature),
 				Op.GetPushOp(InternalState.OfferCoin.Redeem.ToBytes()));
 			tx.Inputs[0].Witnessify();
-			tx.Outputs[0].Value -= feeRate.GetFee(tx.GetVirtualSize());
+
+            // Fee should be amplified since this redeem transaction will be spent in the future.
+			tx.Outputs[0].Value -= (feeRate.GetFee(tx.GetVirtualSize()) * InternalState.FeeFactor);
 
 			var redeemTransaction = new TrustedBroadcastRequest
 			{

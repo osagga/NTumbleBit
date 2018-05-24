@@ -31,7 +31,16 @@ namespace NTumbleBit
 				set;
 			}
 
-			public Script RedeemDestination
+            /// <summary>
+			/// Amount by which the transaction fee will be amplified.
+			/// </summary>
+            public int FeeFactor
+            {
+                get;
+                set;
+            } = 5;
+
+            public Script RedeemDestination
 			{
 				get;
 				set;
@@ -101,7 +110,9 @@ namespace NTumbleBit
 			// depends on what the escrowCoin had initially, so this value will follow whatever
 			// we initially set the escrow to have.
 			tx.Outputs.Add(new TxOut(escrowCoin.Amount, InternalState.RedeemDestination));
-			tx.Outputs[0].Value -= feeRate.GetFee(tx.GetVirtualSize());
+            
+            // We modify the fee here by the expected factor.
+			tx.Outputs[0].Value -= (feeRate.GetFee(tx.GetVirtualSize()) * InternalState.FeeFactor);
 
 			var redeemTransaction = new TrustedBroadcastRequest
 			{
